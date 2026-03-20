@@ -797,16 +797,8 @@ service cloud.firestore {
         tasks.some(t => t.reminderDays);
 
       // ----- AUTH ACTIONS -----
-      const isMobileSafari = /iP(ad|hone|od)/.test(navigator.userAgent) ||
-        (navigator.userAgent.includes('Mac') && 'ontouchend' in document);
-
       const handleLogin = async () => {
         const provider = new firebase.auth.GoogleAuthProvider();
-        if (isMobileSafari) {
-          // iPad/iPhone Safari はポップアップ不可なのでリダイレクト方式
-          auth.signInWithRedirect(provider).catch(console.error);
-          return;
-        }
         try {
           await auth.signInWithPopup(provider);
         } catch (err) {
