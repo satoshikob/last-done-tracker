@@ -298,6 +298,63 @@
     .done-btn:hover { background: #4338ca; }
     .done-btn:active { background: #3730a3; transform: scale(0.97); }
 
+    /* ===== SELECT MODE ===== */
+    .select-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 16px;
+      background: #ede9fe;
+      border-bottom: 1px solid #ddd6fe;
+      gap: 8px;
+    }
+    .select-bar-btn {
+      background: #4f46e5;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 7px 14px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .select-bar-cancel {
+      background: none;
+      color: #6b7280;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      padding: 7px 14px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .select-bar-info { font-size: 13px; color: #4f46e5; font-weight: 600; }
+    .select-toggle-btn {
+      background: none;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      padding: 5px 12px;
+      font-size: 13px;
+      cursor: pointer;
+      color: #4f46e5;
+      font-weight: 600;
+    }
+    .task-card.selected {
+      outline: 2px solid #4f46e5;
+      outline-offset: -2px;
+    }
+    .task-checkbox-wrap {
+      display: flex;
+      align-items: center;
+      padding: 0 4px 0 12px;
+      flex-shrink: 0;
+    }
+    .task-checkbox {
+      width: 22px;
+      height: 22px;
+      cursor: pointer;
+      accent-color: #4f46e5;
+    }
+
     /* ===== FAB ===== */
     .fab {
       position: fixed;
@@ -606,21 +663,42 @@ service cloud.firestore {
 
     // ===== TASK CARD =====
 
-    function TaskCard({ task, onMarkDone, onEdit, onDelete }) {
+    function TaskCard({ task, onMarkDone, onEdit, onDelete, selectMode, selected, onToggleSelect }) {
       const elapsed  = getElapsedLabel(task.lastDoneAt);
       const dateStr  = getElapsedDate(task.lastDoneAt);
       const urgency  = getUrgency(task.lastDoneAt, task.reminderDays);
 
+      function handleCardClick() {
+        if (selectMode) onToggleSelect(task.id);
+      }
+
       return (
-        <div className={`task-card urgency-${urgency}`}>
+        <div
+          className={`task-card urgency-${urgency}${selected ? ' selected' : ''}`}
+          onClick={handleCardClick}
+          style={selectMode ? { cursor: 'pointer' } : {}}
+        >
           <div className="task-indicator" />
+          {selectMode && (
+            <div className="task-checkbox-wrap">
+              <input
+                type="checkbox"
+                className="task-checkbox"
+                checked={!!selected}
+                onChange={() => onToggleSelect(task.id)}
+                onClick={e => e.stopPropagation()}
+              />
+            </div>
+          )}
           <div className="task-body">
             <div className="task-top">
               <span className="task-name">{task.name}</span>
-              <div className="task-actions">
-                <button className="icon-btn" onClick={() => onEdit(task)} title="編集">✏️</button>
-                <button className="icon-btn" onClick={() => onDelete(task.id)} title="削除">🗑️</button>
-              </div>
+              {!selectMode && (
+                <div className="task-actions">
+                  <button className="icon-btn" onClick={e => { e.stopPropagation(); onEdit(task); }} title="編集">✏️</button>
+                  <button className="icon-btn" onClick={e => { e.stopPropagation(); onDelete(task.id); }} title="削除">🗑️</button>
+                </div>
+              )}
             </div>
             {task.category && (
               <span className="category-badge">{task.category}</span>
@@ -633,9 +711,11 @@ service cloud.firestore {
               )}
             </div>
           </div>
-          <button className="done-btn" onClick={() => onMarkDone(task.id)}>
-            完了
-          </button>
+          {!selectMode && (
+            <button className="done-btn" onClick={e => { e.stopPropagation(); onMarkDone(task.id); }}>
+              完了
+            </button>
+          )}
         </div>
       );
     }
@@ -737,6 +817,8 @@ service cloud.firestore {
       const [modalOpen,        setModalOpen]        = useState(false);
       const [editingTask,      setEditingTask]      = useState(null);
       const [notifDismissed,   setNotifDismissed]   = useState(false);
+      const [selectMode,       setSelectMode]       = useState(false);
+      const [selectedIds,      setSelectedIds]      = useState(new Set());
       const notifiedRef = useRef(new Set());
 
       // ----- AUTH -----
@@ -836,6 +918,32 @@ service cloud.firestore {
         });
       }
 
+      function toggleSelectMode() {
+        setSelectMode(v => !v);
+        setSelectedIds(new Set());
+      }
+
+      function handleToggleSelect(id) {
+        setSelectedIds(prev => {
+          const next = new Set(prev);
+          next.has(id) ? next.delete(id) : next.add(id);
+          return next;
+        });
+      }
+
+      async function handleBatchDone() {
+        if (selectedIds.size === 0) return;
+        const batch = db.batch();
+        selectedIds.forEach(id => {
+          batch.update(tasksRef().doc(id), {
+            lastDoneAt: firebase.firestore.FieldValue.serverTimestamp(),
+          });
+        });
+        await batch.commit();
+        setSelectedIds(new Set());
+        setSelectMode(false);
+      }
+
       async function handleDelete(id) {
         if (window.confirm('このタスクを削除しますか？')) {
           await tasksRef().doc(id).delete();
@@ -901,6 +1009,33 @@ service cloud.firestore {
             onSelect={setSelectedCategory}
           />
 
+          {selectMode ? (
+            <div className="select-bar">
+              <span className="select-bar-info">
+                {selectedIds.size > 0 ? `${selectedIds.size}件を選択中` : 'タップして選択'}
+              </span>
+              <div style={{display:'flex',gap:'8px'}}>
+                <button className="select-bar-cancel" onClick={toggleSelectMode}>キャンセル</button>
+                <button
+                  className="select-bar-btn"
+                  onClick={handleBatchDone}
+                  disabled={selectedIds.size === 0}
+                  style={selectedIds.size === 0 ? {opacity:0.4} : {}}
+                >
+                  {selectedIds.size > 0 ? `${selectedIds.size}件を完了` : '完了'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            sorted.length > 0 && (
+              <div style={{display:'flex',justifyContent:'flex-end',padding:'4px 16px 0'}}>
+                <button className="select-toggle-btn" onClick={toggleSelectMode}>
+                  ☑ まとめてチェック
+                </button>
+              </div>
+            )
+          )}
+
           <main className="task-list">
             {sorted.length === 0 ? (
               <div className="empty-state">
@@ -916,12 +1051,15 @@ service cloud.firestore {
                   onMarkDone={handleMarkDone}
                   onEdit={handleEdit}
                   onDelete={handleDelete}
+                  selectMode={selectMode}
+                  selected={selectedIds.has(task.id)}
+                  onToggleSelect={handleToggleSelect}
                 />
               ))
             )}
           </main>
 
-          <button className="fab" onClick={openAddModal} title="タスクを追加">＋</button>
+          {!selectMode && <button className="fab" onClick={openAddModal} title="タスクを追加">＋</button>}
 
           {modalOpen && (
             <TaskModal
