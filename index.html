@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>最後はいつ</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', sans-serif;
+      background: #f0f2f5;
+      min-height: 100vh;
+    }
+
+    /* ===== APP SHELL ===== */
+    .app {
+      max-width: 480px;
+      margin: 0 auto;
+      min-height: 100vh;
+      background: #f0f2f5;
+      position: relative;
+      padding-bottom: 96px;
+    }
+
+    /* ===== LOADING ===== */
+    .loading {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #6b7280;
+      font-size: 16px;
+    }
+
+    /* ===== SETUP SCREEN ===== */
+    .setup-screen {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: #f0f2f5;
+    }
+    .setup-card {
+      background: white;
+      border-radius: 16px;
+      padding: 32px 24px;
+      width: 100%;
+      max-width: 480px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    }
+    .setup-card h2 { font-size: 20px; font-weight: 700; color: #1f2937; margin-bottom: 12px; }
+    .setup-card p { color: #6b7280; font-size: 14px; line-height: 1.6; margin-bottom: 16px; }
+    .setup-card ol { padding-left: 20px; color: #374151; font-size: 14px; line-height: 2; }
+    .setup-card code {
+      background: #f3f4f6;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 13px;
+      color: #4f46e5;
+    }
+
+    /* ===== LOGIN ===== */
+    .login-screen {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 24px;
+    }
+    .login-card {
+      background: white;
+      border-radius: 24px;
+      padding: 48px 32px;
+      text-align: center;
+      max-width: 360px;
+      width: 100%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+    }
+    .login-icon { font-size: 64px; margin-bottom: 16px; }
+    .login-card h1 { font-size: 28px; font-weight: 800; color: #1f2937; margin-bottom: 8px; }
+    .login-card .subtitle { color: #6b7280; margin-bottom: 12px; font-size: 15px; }
+    .feature-list {
+      list-style: none;
+      text-align: left;
+      margin-bottom: 32px;
+      color: #6b7280;
+      font-size: 14px;
+    }
+    .feature-list li { padding: 4px 0; }
+    .feature-list li::before { content: "✓ "; color: #4f46e5; font-weight: 700; }
+    .google-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      width: 100%;
+      padding: 14px 24px;
+      border: 1.5px solid #e5e7eb;
+      border-radius: 12px;
+      background: white;
+      color: #1f2937;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s, box-shadow 0.15s;
+    }
+    .google-btn:hover { background: #f9fafb; box-shadow: 0 2px 12px rgba(0,0,0,0.1); }
+
+    /* ===== HEADER ===== */
+    .header {
+      background: #4f46e5;
+      color: white;
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 12px rgba(79,70,229,0.3);
+    }
+    .header-title { font-size: 20px; font-weight: 800; letter-spacing: -0.3px; }
+    .header-right { display: flex; align-items: center; gap: 10px; }
+    .avatar {
+      width: 34px; height: 34px;
+      border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.5);
+      object-fit: cover;
+    }
+    .avatar-fallback {
+      width: 34px; height: 34px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      font-weight: 700;
+      color: white;
+    }
+    .logout-btn {
+      background: rgba(255,255,255,0.2);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .logout-btn:hover { background: rgba(255,255,255,0.3); }
+
+    /* ===== CATEGORY FILTER ===== */
+    .category-filter {
+      display: flex;
+      gap: 8px;
+      padding: 12px 16px;
+      overflow-x: auto;
+      background: white;
+      border-bottom: 1px solid #e5e7eb;
+      scrollbar-width: none;
+    }
+    .category-filter::-webkit-scrollbar { display: none; }
+    .category-tab {
+      padding: 6px 16px;
+      border-radius: 20px;
+      border: 1.5px solid #e5e7eb;
+      background: white;
+      color: #6b7280;
+      font-size: 14px;
+      white-space: nowrap;
+      cursor: pointer;
+      transition: all 0.15s;
+      font-weight: 500;
+    }
+    .category-tab.active {
+      background: #4f46e5;
+      border-color: #4f46e5;
+      color: white;
+    }
+
+    /* ===== TASK LIST ===== */
+    .task-list {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .empty-state {
+      text-align: center;
+      color: #9ca3af;
+      font-size: 15px;
+      padding: 64px 24px;
+    }
+    .empty-state .empty-icon { font-size: 48px; margin-bottom: 12px; }
+
+    /* ===== TASK CARD ===== */
+    .task-card {
+      background: white;
+      border-radius: 14px;
+      display: flex;
+      align-items: stretch;
+      overflow: hidden;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+      transition: transform 0.1s, box-shadow 0.1s;
+    }
+    .task-card:active { transform: scale(0.99); }
+
+    .task-indicator { width: 5px; flex-shrink: 0; }
+    .urgency-ok    .task-indicator { background: #22c55e; }
+    .urgency-warning .task-indicator { background: #f59e0b; }
+    .urgency-overdue .task-indicator { background: #ef4444; }
+    .urgency-none  .task-indicator { background: #d1d5db; }
+
+    .task-body {
+      flex: 1;
+      padding: 14px 10px 14px 14px;
+      min-width: 0;
+    }
+    .task-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .task-name {
+      font-size: 16px;
+      font-weight: 600;
+      color: #1f2937;
+      line-height: 1.3;
+      word-break: break-word;
+    }
+    .task-actions { display: flex; gap: 2px; flex-shrink: 0; }
+    .icon-btn {
+      background: none;
+      border: none;
+      font-size: 15px;
+      cursor: pointer;
+      padding: 3px 5px;
+      border-radius: 6px;
+      opacity: 0.45;
+      transition: opacity 0.15s;
+    }
+    .icon-btn:hover { opacity: 1; background: #f3f4f6; }
+
+    .category-badge {
+      display: inline-block;
+      margin-top: 5px;
+      padding: 2px 10px;
+      background: #ede9fe;
+      color: #7c3aed;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .task-bottom {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 8px;
+    }
+    .elapsed-label {
+      font-size: 14px;
+      color: #6b7280;
+    }
+    .urgency-overdue .elapsed-label { color: #ef4444; font-weight: 700; }
+    .urgency-warning .elapsed-label { color: #d97706; font-weight: 700; }
+    .elapsed-date {
+      font-size: 12px;
+      color: #9ca3af;
+    }
+    .reminder-badge {
+      font-size: 12px;
+      color: #9ca3af;
+      display: flex;
+      align-items: center;
+      gap: 2px;
+    }
+
+    .done-btn {
+      background: #4f46e5;
+      color: white;
+      border: none;
+      border-radius: 0 14px 14px 0;
+      padding: 0 18px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      flex-shrink: 0;
+      min-width: 64px;
+      transition: background 0.15s;
+      writing-mode: initial;
+    }
+    .done-btn:hover { background: #4338ca; }
+    .done-btn:active { background: #3730a3; transform: scale(0.97); }
+
+    /* ===== FAB ===== */
+    .fab {
+      position: fixed;
+      bottom: 28px;
+      right: 28px;
+      width: 58px;
+      height: 58px;
+      border-radius: 50%;
+      background: #4f46e5;
+      color: white;
+      border: none;
+      font-size: 30px;
+      cursor: pointer;
+      box-shadow: 0 4px 18px rgba(79,70,229,0.45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+      transition: transform 0.15s, box-shadow 0.15s;
+      z-index: 50;
+    }
+    .fab:hover { transform: scale(1.08); box-shadow: 0 6px 22px rgba(79,70,229,0.55); }
+    @media (min-width: 480px) {
+      .fab { right: calc(50vw - 240px + 28px); }
+    }
+
+    /* ===== MODAL ===== */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      z-index: 200;
+    }
+    .modal {
+      background: white;
+      border-radius: 24px 24px 0 0;
+      padding: 28px 24px 40px;
+      width: 100%;
+      max-width: 480px;
+      max-height: 90vh;
+      overflow-y: auto;
+      animation: slideUp 0.25s ease-out;
+    }
+    @keyframes slideUp {
+      from { transform: translateY(100%); opacity: 0; }
+      to   { transform: translateY(0);    opacity: 1; }
+    }
+    .modal-handle {
+      width: 40px; height: 4px;
+      background: #e5e7eb;
+      border-radius: 2px;
+      margin: 0 auto 20px;
+    }
+    .modal h2 { font-size: 20px; font-weight: 700; color: #1f2937; margin-bottom: 24px; }
+    .form-field { margin-bottom: 16px; }
+    .form-field label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: #6b7280;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .form-field input {
+      width: 100%;
+      padding: 13px 14px;
+      border: 1.5px solid #e5e7eb;
+      border-radius: 10px;
+      font-size: 16px;
+      outline: none;
+      transition: border-color 0.15s;
+      color: #1f2937;
+      background: white;
+    }
+    .form-field input:focus { border-color: #4f46e5; }
+    .form-field .hint { font-size: 12px; color: #9ca3af; margin-top: 4px; }
+    .modal-actions { display: flex; gap: 12px; margin-top: 28px; }
+    .cancel-btn {
+      flex: 1;
+      padding: 15px;
+      border: 1.5px solid #e5e7eb;
+      border-radius: 12px;
+      background: white;
+      color: #6b7280;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .save-btn {
+      flex: 2;
+      padding: 15px;
+      border: none;
+      border-radius: 12px;
+      background: #4f46e5;
+      color: white;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .save-btn:hover { background: #4338ca; }
+
+    /* ===== NOTIFICATION BANNER ===== */
+    .notif-banner {
+      background: #fffbeb;
+      border-bottom: 1px solid #fde68a;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 13px;
+      color: #92400e;
+    }
+    .notif-banner button {
+      background: #f59e0b;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 5px 12px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <!-- Firebase CDN (compat) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+  <!-- React 18 + Babel (JSX) -->
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- dayjs -->
+  <script src="https://unpkg.com/dayjs@1/dayjs.min.js"></script>
+  <script src="https://unpkg.com/dayjs@1/locale/ja.js"></script>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useCallback } = React;
+
+    // =====================================================================
+    // ★★★ FIREBASE 設定 ★★★
+    // Firebase Console (https://console.firebase.google.com) で
+    // プロジェクトを作成し、以下の値を書き換えてください。
+    // =====================================================================
+    const firebaseConfig = {
+      apiKey:            "AIzaSyC6yYrn9_oKqkvq0rSKwlmiY-aOBe8Wfl0",
+      authDomain:        "when-do-ec534.firebaseapp.com",
+      projectId:         "when-do-ec534",
+      storageBucket:     "when-do-ec534.firebasestorage.app",
+      messagingSenderId: "805593875679",
+      appId:             "1:805593875679:web:97b0652e7c8518b1a6556a",
+    };
+    // =====================================================================
+
+    const IS_CONFIGURED = !Object.values(firebaseConfig).some(v =>
+      typeof v === 'string' && v.startsWith('YOUR_')
+    );
+
+    let auth, db;
+    if (IS_CONFIGURED) {
+      firebase.initializeApp(firebaseConfig);
+      auth = firebase.auth();
+      db   = firebase.firestore();
+    }
+
+    // ===== UTILITIES =====
+
+    function getElapsedLabel(lastDoneAt) {
+      if (!lastDoneAt) return '未実施';
+      const date = lastDoneAt.toDate ? lastDoneAt.toDate() : new Date(lastDoneAt);
+      const days = dayjs().diff(dayjs(date), 'day');
+      if (days === 0) return '今日';
+      if (days === 1) return '昨日';
+      if (days < 7)  return `${days}日前`;
+      if (days < 30) return `${Math.floor(days / 7)}週間前`;
+      if (days < 365) return `${Math.floor(days / 30)}ヶ月前`;
+      return `${Math.floor(days / 365)}年前`;
+    }
+
+    function getElapsedDate(lastDoneAt) {
+      if (!lastDoneAt) return null;
+      const date = lastDoneAt.toDate ? lastDoneAt.toDate() : new Date(lastDoneAt);
+      return dayjs(date).format('YYYY/MM/DD');
+    }
+
+    function getUrgency(lastDoneAt, reminderDays) {
+      if (!lastDoneAt) return 'none';
+      if (!reminderDays) return 'ok';
+      const date = lastDoneAt.toDate ? lastDoneAt.toDate() : new Date(lastDoneAt);
+      const days = dayjs().diff(dayjs(date), 'day');
+      if (days >= reminderDays)         return 'overdue';
+      if (days >= reminderDays * 0.75) return 'warning';
+      return 'ok';
+    }
+
+    // ===== SETUP SCREEN =====
+
+    function SetupScreen() {
+      return (
+        <div className="setup-screen">
+          <div className="setup-card">
+            <h2>⚙️ Firebase の設定が必要です</h2>
+            <p>このアプリを使うには、Firebase プロジェクトを作成して設定を入力してください。</p>
+            <ol>
+              <li><a href="https://console.firebase.google.com" target="_blank" rel="noopener">console.firebase.google.com</a> を開く</li>
+              <li>「プロジェクトを追加」→ 任意の名前で作成</li>
+              <li>「Authentication」→「始める」→「Google」を有効化</li>
+              <li>「Firestore Database」→「データベースの作成」→ロケーション選択 → 本番モード</li>
+              <li>「プロジェクトの設定」→「ウェブアプリを追加」→ 設定値をコピー</li>
+              <li>このHTMLファイルの <code>firebaseConfig</code> に貼り付けて保存</li>
+            </ol>
+            <br />
+            <p>設定後、Firestore の「ルール」タブに以下を貼り付けてください：</p>
+            <pre style={{background:'#f3f4f6',padding:'12px',borderRadius:'8px',fontSize:'12px',marginTop:'8px',overflowX:'auto'}}>
+{`rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId}/tasks/{taskId} {
+      allow read, write: if request.auth.uid == userId;
+    }
+  }
+}`}
+            </pre>
+          </div>
+        </div>
+      );
+    }
+
+    // ===== LOGIN SCREEN =====
+
+    function LoginScreen({ onLogin }) {
+      return (
+        <div className="login-screen">
+          <div className="login-card">
+            <div className="login-icon">📅</div>
+            <h1>最後はいつ</h1>
+            <p className="subtitle">タスクをいつやったか記録するアプリ</p>
+            <ul className="feature-list">
+              <li>最後に実施した日を記録</li>
+              <li>経過日数を自動表示</li>
+              <li>カテゴリで整理</li>
+              <li>PC・スマホでリアルタイム同期</li>
+              <li>期限超えたらお知らせ</li>
+            </ul>
+            <button onClick={onLogin} className="google-btn">
+              <svg viewBox="0 0 24 24" width="20" height="20" xmlns="http://www.w3.org/2000/svg">
+                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+              </svg>
+              Googleでログイン
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // ===== HEADER =====
+
+    function Header({ user, onLogout }) {
+      const initial = user.displayName ? user.displayName[0] : '?';
+      return (
+        <header className="header">
+          <span className="header-title">📅 最後はいつ</span>
+          <div className="header-right">
+            {user.photoURL
+              ? <img src={user.photoURL} alt="" className="avatar" />
+              : <div className="avatar-fallback">{initial}</div>
+            }
+            <button onClick={onLogout} className="logout-btn">ログアウト</button>
+          </div>
+        </header>
+      );
+    }
+
+    // ===== CATEGORY FILTER =====
+
+    function CategoryFilter({ categories, selected, onSelect }) {
+      return (
+        <div className="category-filter">
+          {['すべて', ...categories].map(cat => (
+            <button
+              key={cat}
+              className={`category-tab${selected === cat ? ' active' : ''}`}
+              onClick={() => onSelect(cat)}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+      );
+    }
+
+    // ===== TASK CARD =====
+
+    function TaskCard({ task, onMarkDone, onEdit, onDelete }) {
+      const elapsed  = getElapsedLabel(task.lastDoneAt);
+      const dateStr  = getElapsedDate(task.lastDoneAt);
+      const urgency  = getUrgency(task.lastDoneAt, task.reminderDays);
+
+      return (
+        <div className={`task-card urgency-${urgency}`}>
+          <div className="task-indicator" />
+          <div className="task-body">
+            <div className="task-top">
+              <span className="task-name">{task.name}</span>
+              <div className="task-actions">
+                <button className="icon-btn" onClick={() => onEdit(task)} title="編集">✏️</button>
+                <button className="icon-btn" onClick={() => onDelete(task.id)} title="削除">🗑️</button>
+              </div>
+            </div>
+            {task.category && (
+              <span className="category-badge">{task.category}</span>
+            )}
+            <div className="task-bottom">
+              <span className="elapsed-label">{elapsed}</span>
+              {dateStr && <span className="elapsed-date">({dateStr})</span>}
+              {task.reminderDays && (
+                <span className="reminder-badge">🔔 {task.reminderDays}日</span>
+              )}
+            </div>
+          </div>
+          <button className="done-btn" onClick={() => onMarkDone(task.id)}>
+            完了
+          </button>
+        </div>
+      );
+    }
+
+    // ===== TASK MODAL =====
+
+    function TaskModal({ task, onSave, onClose }) {
+      const [name,        setName]        = useState(task?.name        ?? '');
+      const [category,    setCategory]    = useState(task?.category    ?? '');
+      const [reminderDays, setReminderDays] = useState(task?.reminderDays ?? '');
+      const [lastDoneDate, setLastDoneDate] = useState(
+        task?.lastDoneAt
+          ? dayjs(task.lastDoneAt.toDate ? task.lastDoneAt.toDate() : task.lastDoneAt).format('YYYY-MM-DD')
+          : ''
+      );
+
+      // Close on overlay click
+      const overlayRef = useRef(null);
+      const handleOverlayClick = (e) => { if (e.target === overlayRef.current) onClose(); };
+
+      const handleSubmit = (e) => {
+        e.preventDefault();
+        if (!name.trim()) return;
+        const data = {
+          name:        name.trim(),
+          category:    category.trim(),
+          reminderDays: reminderDays ? Number(reminderDays) : null,
+        };
+        // If manually changed the date, update lastDoneAt
+        if (lastDoneDate) {
+          data.lastDoneAt = firebase.firestore.Timestamp.fromDate(new Date(lastDoneDate));
+        }
+        onSave(data);
+      };
+
+      return (
+        <div className="modal-overlay" ref={overlayRef} onClick={handleOverlayClick}>
+          <div className="modal">
+            <div className="modal-handle" />
+            <h2>{task ? 'タスクを編集' : 'タスクを追加'}</h2>
+            <form onSubmit={handleSubmit}>
+              <div className="form-field">
+                <label>タスク名 *</label>
+                <input
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                  placeholder="例: 歯医者に行く"
+                  autoFocus
+                  required
+                />
+              </div>
+              <div className="form-field">
+                <label>カテゴリ</label>
+                <input
+                  value={category}
+                  onChange={e => setCategory(e.target.value)}
+                  placeholder="例: 健康、家事、仕事"
+                />
+              </div>
+              <div className="form-field">
+                <label>リマインダー（何日後に通知）</label>
+                <input
+                  type="number"
+                  value={reminderDays}
+                  onChange={e => setReminderDays(e.target.value)}
+                  placeholder="例: 7（空白でリマインダーなし）"
+                  min="1"
+                />
+              </div>
+              <div className="form-field">
+                <label>最後に実施した日（任意）</label>
+                <input
+                  type="date"
+                  value={lastDoneDate}
+                  onChange={e => setLastDoneDate(e.target.value)}
+                  max={dayjs().format('YYYY-MM-DD')}
+                />
+                <p className="hint">「完了」ボタンで今日の日付が自動記録されます</p>
+              </div>
+              <div className="modal-actions">
+                <button type="button" className="cancel-btn" onClick={onClose}>キャンセル</button>
+                <button type="submit" className="save-btn">
+                  {task ? '更新する' : '追加する'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      );
+    }
+
+    // ===== MAIN APP =====
+
+    function App() {
+      const [user,             setUser]             = useState(null);
+      const [authLoading,      setAuthLoading]      = useState(true);
+      const [tasks,            setTasks]            = useState([]);
+      const [selectedCategory, setSelectedCategory] = useState('すべて');
+      const [modalOpen,        setModalOpen]        = useState(false);
+      const [editingTask,      setEditingTask]      = useState(null);
+      const [notifDismissed,   setNotifDismissed]   = useState(false);
+      const notifiedRef = useRef(new Set());
+
+      // ----- AUTH -----
+      useEffect(() => {
+        // リダイレクト経由で戻ってきた場合の処理（iPad/Safariのリダイレクト後など）
+        auth.getRedirectResult()
+          .then(result => { if (result?.user) setUser(result.user); })
+          .catch(console.error);
+
+        const unsub = auth.onAuthStateChanged(u => {
+          setUser(u);
+          setAuthLoading(false);
+        });
+        return unsub;
+      }, []);
+
+      // ----- TASKS (Firestore listener) -----
+      useEffect(() => {
+        if (!user) return;
+        const unsub = db
+          .collection('users').doc(user.uid).collection('tasks')
+          .orderBy('createdAt', 'desc')
+          .onSnapshot(snap => {
+            const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            setTasks(data);
+            triggerNotifications(data);
+          }, err => console.error(err));
+        return unsub;
+      }, [user]);
+
+      // ----- NOTIFICATIONS -----
+      function triggerNotifications(taskList) {
+        if (!('Notification' in window) || Notification.permission !== 'granted') return;
+        taskList.forEach(task => {
+          if (notifiedRef.current.has(task.id)) return;
+          if (getUrgency(task.lastDoneAt, task.reminderDays) === 'overdue') {
+            new Notification('📅 最後はいつ - リマインダー', {
+              body: `「${task.name}」を${task.reminderDays}日以上やっていません`,
+            });
+            notifiedRef.current.add(task.id);
+          }
+        });
+      }
+
+      async function requestNotifPermission() {
+        if ('Notification' in window) {
+          await Notification.requestPermission();
+          setNotifDismissed(true);
+          // Re-check tasks with fresh permission
+          if (Notification.permission === 'granted') triggerNotifications(tasks);
+        }
+      }
+
+      const showNotifBanner =
+        !notifDismissed &&
+        'Notification' in window &&
+        Notification.permission === 'default' &&
+        tasks.some(t => t.reminderDays);
+
+      // ----- AUTH ACTIONS -----
+      const isMobileSafari = /iP(ad|hone|od)/.test(navigator.userAgent) ||
+        (navigator.userAgent.includes('Mac') && 'ontouchend' in document);
+
+      const handleLogin = async () => {
+        const provider = new firebase.auth.GoogleAuthProvider();
+        if (isMobileSafari) {
+          // iPad/iPhone Safari はポップアップ不可なのでリダイレクト方式
+          auth.signInWithRedirect(provider).catch(console.error);
+          return;
+        }
+        try {
+          await auth.signInWithPopup(provider);
+        } catch (err) {
+          if (err.code === 'auth/popup-blocked') {
+            auth.signInWithRedirect(provider).catch(console.error);
+          } else if (err.code !== 'auth/popup-closed-by-user') {
+            console.error(err);
+          }
+        }
+      };
+      const handleLogout = () => auth.signOut();
+
+      // ----- TASK CRUD -----
+      const tasksRef = useCallback(
+        () => db.collection('users').doc(user.uid).collection('tasks'),
+        [user]
+      );
+
+      async function handleSave(data) {
+        if (editingTask) {
+          await tasksRef().doc(editingTask.id).update(data);
+        } else {
+          await tasksRef().add({
+            ...data,
+            lastDoneAt: data.lastDoneAt ?? null,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          });
+        }
+        closeModal();
+      }
+
+      function handleMarkDone(id) {
+        tasksRef().doc(id).update({
+          lastDoneAt: firebase.firestore.FieldValue.serverTimestamp(),
+        });
+      }
+
+      async function handleDelete(id) {
+        if (window.confirm('このタスクを削除しますか？')) {
+          await tasksRef().doc(id).delete();
+        }
+      }
+
+      function handleEdit(task) {
+        setEditingTask(task);
+        setModalOpen(true);
+      }
+
+      function openAddModal() {
+        setEditingTask(null);
+        setModalOpen(true);
+      }
+
+      function closeModal() {
+        setModalOpen(false);
+        setEditingTask(null);
+      }
+
+      // ----- FILTER -----
+      const categories = [...new Set(tasks.map(t => t.category).filter(Boolean))].sort();
+      const filtered = selectedCategory === 'すべて'
+        ? tasks
+        : tasks.filter(t => t.category === selectedCategory);
+
+      // Sort: overdue first, then warning, then ok, then none
+      const urgencyOrder = { overdue: 0, warning: 1, none: 2, ok: 3 };
+      const sorted = [...filtered].sort((a, b) => {
+        const ua = getUrgency(a.lastDoneAt, a.reminderDays);
+        const ub = getUrgency(b.lastDoneAt, b.reminderDays);
+        return urgencyOrder[ua] - urgencyOrder[ub];
+      });
+
+      // ----- RENDER -----
+      if (!IS_CONFIGURED) return <SetupScreen />;
+      if (authLoading)    return <div className="loading">読み込み中...</div>;
+      if (!user)          return <LoginScreen onLogin={handleLogin} />;
+
+      return (
+        <div className="app">
+          <Header user={user} onLogout={handleLogout} />
+
+          {showNotifBanner && (
+            <div className="notif-banner">
+              <span>🔔 リマインダー通知を許可しますか？</span>
+              <div style={{display:'flex',gap:'8px'}}>
+                <button onClick={requestNotifPermission}>許可する</button>
+                <button
+                  onClick={() => setNotifDismissed(true)}
+                  style={{background:'transparent',color:'#92400e',border:'1px solid #fde68a'}}
+                >
+                  後で
+                </button>
+              </div>
+            </div>
+          )}
+
+          <CategoryFilter
+            categories={categories}
+            selected={selectedCategory}
+            onSelect={setSelectedCategory}
+          />
+
+          <main className="task-list">
+            {sorted.length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-icon">📋</div>
+                <p>タスクがありません</p>
+                <p style={{marginTop:'8px',fontSize:'13px'}}>右下の ＋ ボタンで追加しましょう</p>
+              </div>
+            ) : (
+              sorted.map(task => (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  onMarkDone={handleMarkDone}
+                  onEdit={handleEdit}
+                  onDelete={handleDelete}
+                />
+              ))
+            )}
+          </main>
+
+          <button className="fab" onClick={openAddModal} title="タスクを追加">＋</button>
+
+          {modalOpen && (
+            <TaskModal
+              task={editingTask}
+              onSave={handleSave}
+              onClose={closeModal}
+            />
+          )}
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
