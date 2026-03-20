@@ -299,6 +299,28 @@
     .done-btn:active { background: #3730a3; transform: scale(0.97); }
 
     /* ===== SELECT MODE ===== */
+    /* ===== REMINDER QUICK BUTTONS ===== */
+    .reminder-quick {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+    }
+    .reminder-quick-btn {
+      padding: 5px 12px;
+      border-radius: 20px;
+      border: 1.5px solid #d1d5db;
+      background: white;
+      color: #6b7280;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .reminder-quick-btn:hover { border-color: #4f46e5; color: #4f46e5; }
+    .reminder-quick-btn.active { background: #4f46e5; border-color: #4f46e5; color: white; }
+
+    /* ===== SELECT MODE ===== */
     .select-bar {
       display: flex;
       align-items: center;
@@ -729,7 +751,7 @@ service cloud.firestore {
       const [lastDoneDate, setLastDoneDate] = useState(
         task?.lastDoneAt
           ? dayjs(task.lastDoneAt.toDate ? task.lastDoneAt.toDate() : task.lastDoneAt).format('YYYY-MM-DD')
-          : ''
+          : dayjs().format('YYYY-MM-DD')  // 新規追加時は今日をデフォルト
       );
 
       // Close on overlay click
@@ -777,11 +799,26 @@ service cloud.firestore {
               </div>
               <div className="form-field">
                 <label>リマインダー（何日後に通知）</label>
+                <div className="reminder-quick">
+                  {[7, 14, 21, 28].map(d => (
+                    <button
+                      key={d}
+                      type="button"
+                      className={`reminder-quick-btn${Number(reminderDays) === d ? ' active' : ''}`}
+                      onClick={() => setReminderDays(String(d))}
+                    >{d}日</button>
+                  ))}
+                  <button
+                    type="button"
+                    className={`reminder-quick-btn${!reminderDays ? ' active' : ''}`}
+                    onClick={() => setReminderDays('')}
+                  >なし</button>
+                </div>
                 <input
                   type="number"
                   value={reminderDays}
                   onChange={e => setReminderDays(e.target.value)}
-                  placeholder="例: 7（空白でリマインダーなし）"
+                  placeholder="手入力も可"
                   min="1"
                 />
               </div>
