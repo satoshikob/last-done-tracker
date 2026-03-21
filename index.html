@@ -1008,12 +1008,15 @@ service cloud.firestore {
         ? tasks
         : tasks.filter(t => t.category === selectedCategory);
 
-      // Sort: overdue first, then warning, then ok, then none
-      const urgencyOrder = { overdue: 0, warning: 1, none: 2, ok: 3 };
+      // Sort: by last done date ascending (never done → oldest → newest → today at bottom)
       const sorted = [...filtered].sort((a, b) => {
-        const ua = getUrgency(a.lastDoneAt, a.reminderDays);
-        const ub = getUrgency(b.lastDoneAt, b.reminderDays);
-        return urgencyOrder[ua] - urgencyOrder[ub];
+        const toMs = d => d ? dayjs(d.toDate ? d.toDate() : d).valueOf() : null;
+        const da = toMs(a.lastDoneAt);
+        const db = toMs(b.lastDoneAt);
+        if (da === null && db === null) return 0;
+        if (da === null) return -1;
+        if (db === null) return 1;
+        return da - db;
       });
 
       // ----- RENDER -----
