@@ -627,50 +627,82 @@
     .cal-dot.urgency-none { background: #a78bfa; }
     .cal-more { font-size: 9px; color: #9ca3af; }
 
-    /* ===== SLOT PICKER ===== */
-    .slot-wrap {
-      position: relative;
-      height: 132px;
-      overflow: hidden;
+    /* ===== TAGS ===== */
+    .tag-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      padding: 2px 8px;
+      background: #ecfdf5;
+      color: #059669;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .tag-filter {
+      display: flex;
+      gap: 6px;
+      padding: 6px 16px 2px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      flex-wrap: nowrap;
+    }
+    .tag-filter::-webkit-scrollbar { display: none; }
+    .tag-filter-btn {
+      padding: 4px 12px;
+      border-radius: 20px;
+      border: 1.5px solid #d1d5db;
+      background: white;
+      color: #6b7280;
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .tag-filter-btn:hover { border-color: #059669; color: #059669; }
+    .tag-filter-btn.active { background: #059669; border-color: #059669; color: white; }
+    .tag-input-wrap {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 8px;
       border: 1.5px solid #e5e7eb;
       border-radius: 10px;
-      margin: 8px 0;
-    }
-    .slot-highlight {
-      position: absolute;
-      top: 44px; left: 4px; right: 4px; height: 44px;
-      background: #ede9fe;
-      border-radius: 8px;
-      pointer-events: none;
-      z-index: 1;
-    }
-    .slot-fade {
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(to bottom, white 8%, transparent 35%, transparent 65%, white 92%);
-      pointer-events: none;
-      z-index: 2;
-    }
-    .slot-list {
-      height: 132px;
-      overflow-y: scroll;
-      scroll-snap-type: y mandatory;
-      scrollbar-width: none;
-    }
-    .slot-list::-webkit-scrollbar { display: none; }
-    .slot-item {
-      height: 44px;
-      display: flex;
+      min-height: 44px;
       align-items: center;
-      justify-content: center;
-      font-size: 17px;
-      color: #9ca3af;
-      scroll-snap-align: center;
-      cursor: pointer;
-      user-select: none;
-      transition: color 0.1s, font-size 0.1s, font-weight 0.1s;
+      cursor: text;
     }
-    .slot-item.current { color: #4f46e5; font-size: 20px; font-weight: 700; }
+    .tag-input-wrap:focus-within { border-color: #4f46e5; }
+    .tag-chip-edit {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      background: #ecfdf5;
+      color: #059669;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .tag-chip-remove {
+      background: none;
+      border: none;
+      color: #059669;
+      cursor: pointer;
+      font-size: 14px;
+      padding: 0;
+      line-height: 1;
+    }
+    .tag-bare-input {
+      border: none;
+      outline: none;
+      font-size: 14px;
+      color: #1f2937;
+      min-width: 80px;
+      flex: 1;
+      background: transparent;
+    }
 
     /* ===== DONE COUNT ===== */
     .done-count {
@@ -778,7 +810,7 @@
     function getElapsedLabel(lastDoneAt) {
       if (!lastDoneAt) return '未実施';
       const date = lastDoneAt.toDate ? lastDoneAt.toDate() : new Date(lastDoneAt);
-      const days = dayjs().diff(dayjs(date), 'day');
+      const days = dayjs().startOf('day').diff(dayjs(date).startOf('day'), 'day');
       if (days === 0) return '今日';
       if (days === 1) return '昨日';
       if (days < 7)  return `${days}日前`;
@@ -797,7 +829,7 @@
       if (!lastDoneAt) return 'none';
       if (!reminderDays) return 'ok';
       const date = lastDoneAt.toDate ? lastDoneAt.toDate() : new Date(lastDoneAt);
-      const days = dayjs().diff(dayjs(date), 'day');
+      const days = dayjs().startOf('day').diff(dayjs(date).startOf('day'), 'day');
       if (days >= reminderDays)         return 'overdue';
       if (days >= reminderDays * 0.75) return 'warning';
       return 'ok';
@@ -908,58 +940,23 @@ service cloud.firestore {
       );
     }
 
-    // ===== SLOT PICKER =====
+    // ===== TAG FILTER =====
 
-    function SlotPicker({ value, onChange }) {
-      const ITEM_H = 44;
-      const MAX = 99;
-      // items: null(pad), 0(なし), 1, 2, ..., MAX, null(pad)
-      const items = [null, 0, ...Array.from({length: MAX}, (_, i) => i + 1), null];
-      const ref = useRef(null);
-      const suppressRef = useRef(false);
-      const timerRef = useRef(null);
-      const current = (value === '' || value == null) ? 0 : Number(value);
-
-      // scrollTop = current * ITEM_H
-      useEffect(() => {
-        if (!ref.current) return;
-        const target = current * ITEM_H;
-        if (Math.abs(ref.current.scrollTop - target) < 2) return;
-        suppressRef.current = true;
-        ref.current.scrollTop = target;
-        setTimeout(() => { suppressRef.current = false; }, 300);
-      }, [current]);
-
-      const handleScroll = () => {
-        if (suppressRef.current) return;
-        clearTimeout(timerRef.current);
-        timerRef.current = setTimeout(() => {
-          if (!ref.current) return;
-          const idx = Math.max(0, Math.min(MAX, Math.round(ref.current.scrollTop / ITEM_H)));
-          ref.current.scrollTop = idx * ITEM_H;
-          onChange(idx === 0 ? '' : String(idx));
-        }, 80);
-      };
-
+    function TagFilter({ tags, selected, onSelect }) {
+      if (!tags.length) return null;
       return (
-        <div className="slot-wrap">
-          <div className="slot-highlight" />
-          <div className="slot-fade" />
-          <div ref={ref} className="slot-list" onScroll={handleScroll}>
-            {items.map((item, i) => (
-              <div
-                key={i}
-                className={`slot-item${item === current ? ' current' : ''}${item === null ? '' : ''}`}
-                style={item === null ? {scrollSnapAlign:'none', cursor:'default'} : {}}
-                onClick={() => {
-                  if (item === null) return;
-                  onChange(item === 0 ? '' : String(item));
-                }}
-              >
-                {item === null ? '' : item === 0 ? 'なし' : `${item}日`}
-              </div>
-            ))}
-          </div>
+        <div className="tag-filter">
+          <button
+            className={`tag-filter-btn${!selected ? ' active' : ''}`}
+            onClick={() => onSelect(null)}
+          >すべて</button>
+          {tags.map(tag => (
+            <button
+              key={tag}
+              className={`tag-filter-btn${selected === tag ? ' active' : ''}`}
+              onClick={() => onSelect(selected === tag ? null : tag)}
+            >{tag}</button>
+          ))}
         </div>
       );
     }
@@ -1006,6 +1003,13 @@ service cloud.firestore {
             {task.category && (
               <span className="category-badge">{task.category}</span>
             )}
+            {task.tags?.length > 0 && (
+              <div style={{display:'flex',flexWrap:'wrap',gap:'4px',marginTop:'4px'}}>
+                {task.tags.map(tag => (
+                  <span key={tag} className="tag-chip">{tag}</span>
+                ))}
+              </div>
+            )}
             <div className="task-bottom">
               <span className="elapsed-label">{elapsed}</span>
               {dateStr && <span className="elapsed-date">({dateStr})</span>}
@@ -1033,11 +1037,24 @@ service cloud.firestore {
 
     // ===== TASK MODAL =====
 
-    function TaskModal({ task, onSave, onClose, existingCategories }) {
+    function TaskModal({ task, onSave, onClose, existingCategories, existingTags }) {
       const [name,        setName]        = useState(task?.name        ?? '');
       const [category,    setCategory]    = useState(task?.category    ?? '');
       const [reminderDays, setReminderDays] = useState(task?.reminderDays ?? '');
       const [youtubeUrl,  setYoutubeUrl]  = useState(task?.youtubeUrl  ?? '');
+      const [tags,        setTags]        = useState(task?.tags        ?? []);
+      const [tagInput,    setTagInput]    = useState('');
+
+      function addTag(val) {
+        const t = val.trim();
+        if (t && !tags.includes(t)) setTags(prev => [...prev, t]);
+        setTagInput('');
+      }
+      function removeTag(t) { setTags(prev => prev.filter(x => x !== t)); }
+      function handleTagKeyDown(e) {
+        if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag(tagInput); }
+        if (e.key === 'Backspace' && !tagInput && tags.length) removeTag(tags[tags.length - 1]);
+      }
       const [lastDoneDate, setLastDoneDate] = useState(
         task?.lastDoneAt
           ? dayjs(task.lastDoneAt.toDate ? task.lastDoneAt.toDate() : task.lastDoneAt).format('YYYY-MM-DD')
@@ -1056,6 +1073,7 @@ service cloud.firestore {
           category:    category.trim(),
           reminderDays: reminderDays ? Number(reminderDays) : null,
           youtubeUrl:  youtubeUrl.trim() || null,
+          tags: tags.length ? tags : [],
         };
         // If manually changed the date, update lastDoneAt
         if (lastDoneDate) {
@@ -1117,7 +1135,41 @@ service cloud.firestore {
                     onClick={() => setReminderDays('')}
                   >なし</button>
                 </div>
-                <SlotPicker value={reminderDays} onChange={setReminderDays} />
+                <input
+                  type="number"
+                  value={reminderDays}
+                  onChange={e => setReminderDays(e.target.value)}
+                  placeholder="手入力も可"
+                  min="1"
+                />
+              </div>
+              <div className="form-field">
+                <label>タグ</label>
+                {existingTags?.length > 0 && (
+                  <div className="reminder-quick" style={{marginBottom:'8px'}}>
+                    {existingTags.filter(t => !tags.includes(t)).map(t => (
+                      <button key={t} type="button" className="reminder-quick-btn"
+                        onClick={() => setTags(prev => [...prev, t])}
+                      >{t}</button>
+                    ))}
+                  </div>
+                )}
+                <div className="tag-input-wrap" onClick={e => e.currentTarget.querySelector('input').focus()}>
+                  {tags.map(t => (
+                    <span key={t} className="tag-chip-edit">
+                      {t}
+                      <button type="button" className="tag-chip-remove" onClick={() => removeTag(t)}>×</button>
+                    </span>
+                  ))}
+                  <input
+                    className="tag-bare-input"
+                    value={tagInput}
+                    onChange={e => setTagInput(e.target.value)}
+                    onKeyDown={handleTagKeyDown}
+                    onBlur={() => tagInput && addTag(tagInput)}
+                    placeholder={tags.length ? '' : 'タグを入力してEnter'}
+                  />
+                </div>
               </div>
               <div className="form-field">
                 <label>YouTube URL（任意）</label>
@@ -1324,7 +1376,13 @@ service cloud.firestore {
                     onClick={() => setReminderDays('0')}
                   >なし</button>
                 </div>
-                <SlotPicker value={reminderDays === '0' ? '' : reminderDays} onChange={v => setReminderDays(v === '' ? '0' : v)} />
+                <input
+                  type="number"
+                  value={reminderDays}
+                  onChange={e => setReminderDays(e.target.value)}
+                  placeholder="（変更しない場合は空欄）"
+                  min="1"
+                />
               </div>
               <div className="modal-actions">
                 <button type="button" className="cancel-btn" onClick={onClose}>キャンセル</button>
@@ -1345,6 +1403,8 @@ service cloud.firestore {
       const [lists,            setLists]            = useState([]);
       const [currentListId,    setCurrentListId]    = useState(null);
       const [selectedCategory, setSelectedCategory] = useState('すべて');
+      const [selectedTag,      setSelectedTag]      = useState(null);
+      const [hideDaily,        setHideDaily]        = useState(false);
       const [modalOpen,        setModalOpen]        = useState(false);
       const [editingTask,      setEditingTask]      = useState(null);
       const [notifDismissed,   setNotifDismissed]   = useState(false);
@@ -1570,9 +1630,11 @@ service cloud.firestore {
 
       // ----- FILTER -----
       const categories = [...new Set(tasks.map(t => t.category).filter(Boolean))].sort();
-      const filtered = selectedCategory === 'すべて'
-        ? tasks
-        : tasks.filter(t => t.category === selectedCategory);
+      const allTags_    = [...new Set(tasks.flatMap(t => t.tags || []))].sort();
+      const filtered = tasks
+        .filter(t => selectedCategory === 'すべて' || t.category === selectedCategory)
+        .filter(t => !selectedTag || (t.tags || []).includes(selectedTag))
+        .filter(t => !hideDaily || t.reminderDays !== 1);
 
       // Sort
       const toMs = d => d ? dayjs(d.toDate ? d.toDate() : d).valueOf() : null;
@@ -1623,7 +1685,7 @@ service cloud.firestore {
           <ListTabs
             lists={lists}
             currentListId={currentListId}
-            onSelect={id => { setCurrentListId(id); setSelectedCategory('すべて'); }}
+            onSelect={id => { setCurrentListId(id); setSelectedCategory('すべて'); setSelectedTag(null); setHideDaily(false); }}
             onAdd={handleAddList}
           />
 
@@ -1631,6 +1693,12 @@ service cloud.firestore {
             categories={categories}
             selected={selectedCategory}
             onSelect={setSelectedCategory}
+          />
+
+          <TagFilter
+            tags={allTags_}
+            selected={selectedTag}
+            onSelect={setSelectedTag}
           />
 
           <div className="sort-bar">
@@ -1648,6 +1716,10 @@ service cloud.firestore {
                 {sortKey === key && <span className="sort-arrow">{sortAsc ? ' ↑' : ' ↓'}</span>}
               </button>
             ))}
+            <button
+              className={`sort-btn${hideDaily ? ' active' : ''}`}
+              onClick={() => setHideDaily(v => !v)}
+            >毎日以外</button>
             <div className="view-toggle" style={{marginLeft:'auto'}}>
               <button className={`view-toggle-btn${view==='list'?' active':''}`} onClick={() => setView('list')}>☰</button>
               <button className={`view-toggle-btn${view==='calendar'?' active':''}`} onClick={() => setView('calendar')}>📅</button>
@@ -1719,7 +1791,7 @@ service cloud.firestore {
           {!selectMode && <button className="fab" onClick={openAddModal} title="タスクを追加">＋</button>}
 
           {modalOpen && (
-            <TaskModal task={editingTask} onSave={handleSave} onClose={closeModal} existingCategories={categories} />
+            <TaskModal task={editingTask} onSave={handleSave} onClose={closeModal} existingCategories={categories} existingTags={allTags_} />
           )}
 
           {batchEditOpen && (
