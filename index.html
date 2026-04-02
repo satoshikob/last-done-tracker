@@ -505,6 +505,145 @@
     }
     .save-btn:hover { background: #4338ca; }
 
+    /* ===== LIST TABS ===== */
+    .list-tabs {
+      display: flex;
+      gap: 6px;
+      padding: 10px 16px;
+      overflow-x: auto;
+      background: white;
+      border-bottom: 1px solid #e5e7eb;
+      scrollbar-width: none;
+      align-items: center;
+    }
+    .list-tabs::-webkit-scrollbar { display: none; }
+    .list-tab {
+      padding: 5px 14px;
+      border-radius: 20px;
+      border: 1.5px solid #e5e7eb;
+      background: white;
+      color: #6b7280;
+      font-size: 13px;
+      font-weight: 600;
+      white-space: nowrap;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .list-tab.active { background: #4f46e5; border-color: #4f46e5; color: white; }
+    .list-tab-add {
+      padding: 5px 12px;
+      border-radius: 20px;
+      border: 1.5px dashed #d1d5db;
+      background: white;
+      color: #9ca3af;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s;
+      flex-shrink: 0;
+    }
+    .list-tab-add:hover { border-color: #4f46e5; color: #4f46e5; }
+
+    /* ===== VIEW TOGGLE ===== */
+    .view-toggle {
+      display: flex;
+      gap: 4px;
+      margin-left: auto;
+      background: #f3f4f6;
+      border-radius: 8px;
+      padding: 2px;
+    }
+    .view-toggle-btn {
+      padding: 4px 10px;
+      border: none;
+      border-radius: 6px;
+      background: transparent;
+      color: #6b7280;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .view-toggle-btn.active { background: white; color: #4f46e5; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+
+    /* ===== CALENDAR ===== */
+    .calendar { padding: 12px 16px; }
+    .calendar-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .cal-nav-btn {
+      background: none;
+      border: 1.5px solid #e5e7eb;
+      border-radius: 8px;
+      width: 34px; height: 34px;
+      font-size: 18px;
+      cursor: pointer;
+      color: #374151;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .cal-nav-btn:hover { background: #f3f4f6; }
+    .cal-title { font-size: 16px; font-weight: 700; color: #1f2937; }
+    .calendar-dow {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      margin-bottom: 4px;
+    }
+    .cal-dow { text-align: center; font-size: 11px; font-weight: 700; color: #9ca3af; padding: 2px 0; }
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 2px;
+    }
+    .cal-day {
+      background: white;
+      border-radius: 8px;
+      padding: 4px 3px;
+      min-height: 52px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .cal-day.other-month { opacity: 0.3; }
+    .cal-day.today .cal-day-num {
+      background: #4f46e5;
+      color: white;
+      border-radius: 50%;
+      width: 22px; height: 22px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .cal-day-num { font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 3px; width: 22px; text-align: center; }
+    .cal-dots { display: flex; flex-wrap: wrap; gap: 2px; justify-content: center; }
+    .cal-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: #d1d5db;
+    }
+    .cal-dot.urgency-ok { background: #22c55e; }
+    .cal-dot.urgency-warning { background: #f59e0b; }
+    .cal-dot.urgency-overdue { background: #ef4444; }
+    .cal-dot.urgency-none { background: #a78bfa; }
+    .cal-more { font-size: 9px; color: #9ca3af; }
+
+    /* ===== YOUTUBE ===== */
+    .yt-btn {
+      background: #ff0000;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: background 0.15s;
+    }
+    .yt-btn:hover { background: #cc0000; }
+    .yt-container { width: 100%; aspect-ratio: 16/9; border-radius: 10px; overflow: hidden; background: #000; }
+    .yt-container iframe { width: 100%; height: 100%; border: none; }
+
     /* ===== NOTIFICATION BANNER ===== */
     .notif-banner {
       background: #fffbeb;
@@ -546,6 +685,9 @@
   <!-- dayjs -->
   <script src="https://unpkg.com/dayjs@1/dayjs.min.js"></script>
   <script src="https://unpkg.com/dayjs@1/locale/ja.js"></script>
+
+  <!-- YouTube IFrame API -->
+  <script src="https://www.youtube.com/iframe_api"></script>
 
   <script type="text/babel">
     const { useState, useEffect, useRef, useCallback } = React;
@@ -606,6 +748,12 @@
       return 'ok';
     }
 
+    function getYouTubeId(url) {
+      if (!url) return null;
+      const m = url.match(/(?:v=|youtu\.be\/|embed\/)([^&?/\s]{11})/);
+      return m ? m[1] : null;
+    }
+
     // ===== SETUP SCREEN =====
 
     function SetupScreen() {
@@ -628,7 +776,7 @@
 {`rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /users/{userId}/tasks/{taskId} {
+    match /users/{userId}/{document=**} {
       allow read, write: if request.auth.uid == userId;
     }
   }
@@ -707,7 +855,7 @@ service cloud.firestore {
 
     // ===== TASK CARD =====
 
-    function TaskCard({ task, onMarkDone, onEdit, onDelete, selectMode, selected, onToggleSelect }) {
+    function TaskCard({ task, onMarkDone, onEdit, onDelete, onYouTube, selectMode, selected, onToggleSelect }) {
       const elapsed  = getElapsedLabel(task.lastDoneAt);
       const dateStr  = getElapsedDate(task.lastDoneAt);
       const urgency  = getUrgency(task.lastDoneAt, task.reminderDays);
@@ -756,9 +904,14 @@ service cloud.firestore {
             </div>
           </div>
           {!selectMode && (
-            <button className="done-btn" onClick={e => { e.stopPropagation(); onMarkDone(task.id); }}>
-              完了
-            </button>
+            <div style={{display:'flex',flexDirection:'column',gap:'4px',flexShrink:0}}>
+              {task.youtubeUrl && (
+                <button className="yt-btn" onClick={e => { e.stopPropagation(); onYouTube(task); }}>▶</button>
+              )}
+              <button className="done-btn" style={{borderRadius: task.youtubeUrl ? '0 0 14px 0' : '0 14px 14px 0', flex:1}} onClick={e => { e.stopPropagation(); onMarkDone(task.id); }}>
+                完了
+              </button>
+            </div>
           )}
         </div>
       );
@@ -770,6 +923,7 @@ service cloud.firestore {
       const [name,        setName]        = useState(task?.name        ?? '');
       const [category,    setCategory]    = useState(task?.category    ?? '');
       const [reminderDays, setReminderDays] = useState(task?.reminderDays ?? '');
+      const [youtubeUrl,  setYoutubeUrl]  = useState(task?.youtubeUrl  ?? '');
       const [lastDoneDate, setLastDoneDate] = useState(
         task?.lastDoneAt
           ? dayjs(task.lastDoneAt.toDate ? task.lastDoneAt.toDate() : task.lastDoneAt).format('YYYY-MM-DD')
@@ -787,6 +941,7 @@ service cloud.firestore {
           name:        name.trim(),
           category:    category.trim(),
           reminderDays: reminderDays ? Number(reminderDays) : null,
+          youtubeUrl:  youtubeUrl.trim() || null,
         };
         // If manually changed the date, update lastDoneAt
         if (lastDoneDate) {
@@ -845,6 +1000,15 @@ service cloud.firestore {
                 />
               </div>
               <div className="form-field">
+                <label>YouTube URL（任意）</label>
+                <input
+                  value={youtubeUrl}
+                  onChange={e => setYoutubeUrl(e.target.value)}
+                  placeholder="https://youtu.be/xxxxx"
+                />
+                <p className="hint">再生開始時に自動で完了になります</p>
+              </div>
+              <div className="form-field">
                 <label>最後に実施した日（任意）</label>
                 <input
                   type="date"
@@ -866,12 +1030,131 @@ service cloud.firestore {
       );
     }
 
+    // ===== LIST TABS =====
+
+    function ListTabs({ lists, currentListId, onSelect, onAdd }) {
+      return (
+        <div className="list-tabs">
+          {lists.map(list => (
+            <button
+              key={list.id}
+              className={`list-tab${list.id === currentListId ? ' active' : ''}`}
+              onClick={() => onSelect(list.id)}
+            >
+              {list.name}
+            </button>
+          ))}
+          <button className="list-tab-add" onClick={onAdd} title="リストを追加">＋</button>
+        </div>
+      );
+    }
+
+    // ===== CALENDAR VIEW =====
+
+    function CalendarView({ tasks, calMonth, onPrev, onNext }) {
+      const startDow = calMonth.startOf('month').day();
+      const days = Array.from({ length: 42 }, (_, i) =>
+        calMonth.startOf('month').subtract(startDow, 'day').add(i, 'day')
+      );
+      const tasksByDate = {};
+      tasks.forEach(t => {
+        if (!t.lastDoneAt) return;
+        const d = t.lastDoneAt.toDate ? t.lastDoneAt.toDate() : new Date(t.lastDoneAt);
+        const k = dayjs(d).format('YYYY-MM-DD');
+        (tasksByDate[k] = tasksByDate[k] || []).push(t);
+      });
+      const today = dayjs().format('YYYY-MM-DD');
+      return (
+        <div className="calendar">
+          <div className="calendar-header">
+            <button className="cal-nav-btn" onClick={onPrev}>‹</button>
+            <span className="cal-title">{calMonth.format('YYYY年M月')}</span>
+            <button className="cal-nav-btn" onClick={onNext}>›</button>
+          </div>
+          <div className="calendar-dow">
+            {['日','月','火','水','木','金','土'].map(d => (
+              <span key={d} className="cal-dow">{d}</span>
+            ))}
+          </div>
+          <div className="calendar-grid">
+            {days.map((d, i) => {
+              const k = d.format('YYYY-MM-DD');
+              const dots = tasksByDate[k] || [];
+              return (
+                <div key={i} className={`cal-day${d.month()!==calMonth.month()?' other-month':''}${k===today?' today':''}`}>
+                  <span className="cal-day-num">{d.date()}</span>
+                  <div className="cal-dots">
+                    {dots.slice(0,4).map(t => (
+                      <span key={t.id} className={`cal-dot urgency-${getUrgency(t.lastDoneAt,t.reminderDays)}`} title={t.name} />
+                    ))}
+                    {dots.length > 4 && <span className="cal-more">+{dots.length-4}</span>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    // ===== YOUTUBE MODAL =====
+
+    function YouTubeModal({ task, onDone, onClose }) {
+      const containerRef = useRef(null);
+      const playerRef    = useRef(null);
+      const doneRef      = useRef(false);
+
+      useEffect(() => {
+        const videoId = getYouTubeId(task.youtubeUrl);
+        if (!videoId) return;
+        const init = () => {
+          if (playerRef.current) return;
+          const div = document.createElement('div');
+          containerRef.current.appendChild(div);
+          playerRef.current = new YT.Player(div, {
+            videoId,
+            width: '100%',
+            height: '100%',
+            playerVars: { autoplay: 1 },
+            events: {
+              onStateChange: (e) => {
+                if (e.data === YT.PlayerState.PLAYING && !doneRef.current) {
+                  doneRef.current = true;
+                  onDone(task.id);
+                }
+              }
+            }
+          });
+        };
+        if (window.YT && window.YT.Player) { init(); }
+        else {
+          const prev = window.onYouTubeIframeAPIReady;
+          window.onYouTubeIframeAPIReady = () => { prev && prev(); init(); };
+        }
+        return () => { try { playerRef.current?.destroy(); } catch(e){} playerRef.current = null; };
+      }, []);
+
+      const overlayRef = useRef(null);
+      return (
+        <div className="modal-overlay" ref={overlayRef} onClick={e => e.target===overlayRef.current && onClose()} style={{zIndex:300}}>
+          <div className="modal" style={{borderRadius:'24px',padding:'24px 24px 32px'}}>
+            <div className="modal-handle" />
+            <h2 style={{marginBottom:'16px',fontSize:'16px'}}>{task.name}</h2>
+            <div className="yt-container" ref={containerRef} />
+            <button className="cancel-btn" style={{marginTop:'16px',width:'100%'}} onClick={onClose}>閉じる</button>
+          </div>
+        </div>
+      );
+    }
+
     // ===== MAIN APP =====
 
     function App() {
       const [user,             setUser]             = useState(null);
       const [authLoading,      setAuthLoading]      = useState(true);
-      const [tasks,            setTasks]            = useState([]);
+      const [allTasks,         setAllTasks]         = useState([]);
+      const [lists,            setLists]            = useState([]);
+      const [currentListId,    setCurrentListId]    = useState(null);
       const [selectedCategory, setSelectedCategory] = useState('すべて');
       const [modalOpen,        setModalOpen]        = useState(false);
       const [editingTask,      setEditingTask]      = useState(null);
@@ -880,7 +1163,12 @@ service cloud.firestore {
       const [selectedIds,      setSelectedIds]      = useState(new Set());
       const [sortKey,          setSortKey]          = useState('lastDone');
       const [sortAsc,          setSortAsc]          = useState(true);
-      const notifiedRef = useRef(new Set());
+      const [view,             setView]             = useState('list');
+      const [calMonth,         setCalMonth]         = useState(dayjs());
+      const [ytTask,           setYtTask]           = useState(null);
+      const notifiedRef  = useRef(new Set());
+      const firstListRef = useRef(false);
+      const migratedRef  = useRef(false);
 
       // ----- AUTH -----
       useEffect(() => {
@@ -896,6 +1184,28 @@ service cloud.firestore {
         return unsub;
       }, []);
 
+      // ----- LISTS (Firestore listener) -----
+      useEffect(() => {
+        if (!user) return;
+        const unsub = db
+          .collection('users').doc(user.uid).collection('lists')
+          .orderBy('createdAt')
+          .onSnapshot(snap => {
+            const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            if (data.length === 0) {
+              db.collection('users').doc(user.uid).collection('lists')
+                .add({ name: 'メイン', createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+            } else {
+              setLists(data);
+              if (!firstListRef.current) {
+                setCurrentListId(data[0].id);
+                firstListRef.current = true;
+              }
+            }
+          }, err => console.error(err));
+        return unsub;
+      }, [user]);
+
       // ----- TASKS (Firestore listener) -----
       useEffect(() => {
         if (!user) return;
@@ -904,13 +1214,34 @@ service cloud.firestore {
           .orderBy('createdAt', 'desc')
           .onSnapshot(snap => {
             const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-            setTasks(data);
-            triggerNotifications(data);
+            setAllTasks(data);
           }, err => console.error(err));
         return unsub;
       }, [user]);
 
+      // ----- MIGRATE old tasks (no listId) to first list -----
+      useEffect(() => {
+        if (!user || !lists.length || !allTasks.length || migratedRef.current) return;
+        const unassigned = allTasks.filter(t => !t.listId);
+        if (unassigned.length === 0) { migratedRef.current = true; return; }
+        migratedRef.current = true;
+        const defaultId = lists[0].id;
+        const batch = db.batch();
+        unassigned.forEach(t => batch.update(
+          db.collection('users').doc(user.uid).collection('tasks').doc(t.id),
+          { listId: defaultId }
+        ));
+        batch.commit().catch(console.error);
+      }, [user, lists, allTasks]);
+
+      // ----- CURRENT LIST TASKS -----
+      const tasks = allTasks.filter(t => t.listId === currentListId);
+
       // ----- NOTIFICATIONS -----
+      useEffect(() => {
+        triggerNotifications(tasks);
+      }, [tasks.map(t=>t.id).join(',')]);
+
       function triggerNotifications(taskList) {
         if (!('Notification' in window) || Notification.permission !== 'granted') return;
         taskList.forEach(task => {
@@ -960,12 +1291,21 @@ service cloud.firestore {
         [user]
       );
 
+      async function handleAddList() {
+        const name = window.prompt('リスト名を入力してください');
+        if (!name?.trim()) return;
+        const ref = await db.collection('users').doc(user.uid).collection('lists')
+          .add({ name: name.trim(), createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+        setCurrentListId(ref.id);
+      }
+
       async function handleSave(data) {
         if (editingTask) {
           await tasksRef().doc(editingTask.id).update(data);
         } else {
           await tasksRef().add({
             ...data,
+            listId: currentListId,
             lastDoneAt: data.lastDoneAt ?? null,
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
           });
@@ -1070,15 +1410,20 @@ service cloud.firestore {
               <span>🔔 リマインダー通知を許可しますか？</span>
               <div style={{display:'flex',gap:'8px'}}>
                 <button onClick={requestNotifPermission}>許可する</button>
-                <button
-                  onClick={() => setNotifDismissed(true)}
-                  style={{background:'transparent',color:'#92400e',border:'1px solid #fde68a'}}
-                >
+                <button onClick={() => setNotifDismissed(true)}
+                  style={{background:'transparent',color:'#92400e',border:'1px solid #fde68a'}}>
                   後で
                 </button>
               </div>
             </div>
           )}
+
+          <ListTabs
+            lists={lists}
+            currentListId={currentListId}
+            onSelect={id => { setCurrentListId(id); setSelectedCategory('すべて'); }}
+            onAdd={handleAddList}
+          />
 
           <CategoryFilter
             categories={categories}
@@ -1101,65 +1446,79 @@ service cloud.firestore {
                 {sortKey === key && <span className="sort-arrow">{sortAsc ? ' ↑' : ' ↓'}</span>}
               </button>
             ))}
+            <div className="view-toggle" style={{marginLeft:'auto'}}>
+              <button className={`view-toggle-btn${view==='list'?' active':''}`} onClick={() => setView('list')}>☰</button>
+              <button className={`view-toggle-btn${view==='calendar'?' active':''}`} onClick={() => setView('calendar')}>📅</button>
+            </div>
           </div>
 
-          {selectMode ? (
-            <div className="select-bar">
-              <span className="select-bar-info">
-                {selectedIds.size > 0 ? `${selectedIds.size}件を選択中` : 'タップして選択'}
-              </span>
-              <div style={{display:'flex',gap:'8px'}}>
-                <button className="select-bar-cancel" onClick={toggleSelectMode}>キャンセル</button>
-                <button
-                  className="select-bar-btn"
-                  onClick={handleBatchDone}
-                  disabled={selectedIds.size === 0}
-                  style={selectedIds.size === 0 ? {opacity:0.4} : {}}
-                >
-                  {selectedIds.size > 0 ? `${selectedIds.size}件を完了` : '完了'}
-                </button>
-              </div>
-            </div>
+          {view === 'calendar' ? (
+            <CalendarView
+              tasks={tasks}
+              calMonth={calMonth}
+              onPrev={() => setCalMonth(m => m.subtract(1, 'month'))}
+              onNext={() => setCalMonth(m => m.add(1, 'month'))}
+            />
           ) : (
-            sorted.length > 0 && (
-              <div style={{display:'flex',justifyContent:'flex-end',padding:'4px 16px 0'}}>
-                <button className="select-toggle-btn" onClick={toggleSelectMode}>
-                  ☑ まとめてチェック
-                </button>
-              </div>
-            )
-          )}
+            <>
+              {selectMode ? (
+                <div className="select-bar">
+                  <span className="select-bar-info">
+                    {selectedIds.size > 0 ? `${selectedIds.size}件を選択中` : 'タップして選択'}
+                  </span>
+                  <div style={{display:'flex',gap:'8px'}}>
+                    <button className="select-bar-cancel" onClick={toggleSelectMode}>キャンセル</button>
+                    <button className="select-bar-btn" onClick={handleBatchDone}
+                      disabled={selectedIds.size === 0} style={selectedIds.size === 0 ? {opacity:0.4} : {}}>
+                      {selectedIds.size > 0 ? `${selectedIds.size}件を完了` : '完了'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                sorted.length > 0 && (
+                  <div style={{display:'flex',justifyContent:'flex-end',padding:'4px 16px 0'}}>
+                    <button className="select-toggle-btn" onClick={toggleSelectMode}>☑ まとめてチェック</button>
+                  </div>
+                )
+              )}
 
-          <main className="task-list">
-            {sorted.length === 0 ? (
-              <div className="empty-state">
-                <div className="empty-icon">📋</div>
-                <p>タスクがありません</p>
-                <p style={{marginTop:'8px',fontSize:'13px'}}>右下の ＋ ボタンで追加しましょう</p>
-              </div>
-            ) : (
-              sorted.map(task => (
-                <TaskCard
-                  key={task.id}
-                  task={task}
-                  onMarkDone={handleMarkDone}
-                  onEdit={handleEdit}
-                  onDelete={handleDelete}
-                  selectMode={selectMode}
-                  selected={selectedIds.has(task.id)}
-                  onToggleSelect={handleToggleSelect}
-                />
-              ))
-            )}
-          </main>
+              <main className="task-list">
+                {sorted.length === 0 ? (
+                  <div className="empty-state">
+                    <div className="empty-icon">📋</div>
+                    <p>タスクがありません</p>
+                    <p style={{marginTop:'8px',fontSize:'13px'}}>右下の ＋ ボタンで追加しましょう</p>
+                  </div>
+                ) : (
+                  sorted.map(task => (
+                    <TaskCard
+                      key={task.id}
+                      task={task}
+                      onMarkDone={handleMarkDone}
+                      onEdit={handleEdit}
+                      onDelete={handleDelete}
+                      onYouTube={setYtTask}
+                      selectMode={selectMode}
+                      selected={selectedIds.has(task.id)}
+                      onToggleSelect={handleToggleSelect}
+                    />
+                  ))
+                )}
+              </main>
+            </>
+          )}
 
           {!selectMode && <button className="fab" onClick={openAddModal} title="タスクを追加">＋</button>}
 
           {modalOpen && (
-            <TaskModal
-              task={editingTask}
-              onSave={handleSave}
-              onClose={closeModal}
+            <TaskModal task={editingTask} onSave={handleSave} onClose={closeModal} />
+          )}
+
+          {ytTask && (
+            <YouTubeModal
+              task={ytTask}
+              onDone={(id) => { handleMarkDone(id); }}
+              onClose={() => setYtTask(null)}
             />
           )}
         </div>
