@@ -627,6 +627,61 @@
     .cal-dot.urgency-none { background: #a78bfa; }
     .cal-more { font-size: 9px; color: #9ca3af; }
 
+    /* ===== SLOT PICKER ===== */
+    .slot-wrap {
+      position: relative;
+      height: 132px;
+      overflow: hidden;
+      border: 1.5px solid #e5e7eb;
+      border-radius: 10px;
+      margin: 8px 0;
+    }
+    .slot-highlight {
+      position: absolute;
+      top: 44px; left: 4px; right: 4px; height: 44px;
+      background: #ede9fe;
+      border-radius: 8px;
+      pointer-events: none;
+      z-index: 1;
+    }
+    .slot-fade {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to bottom, white 8%, transparent 35%, transparent 65%, white 92%);
+      pointer-events: none;
+      z-index: 2;
+    }
+    .slot-list {
+      height: 132px;
+      overflow-y: scroll;
+      scroll-snap-type: y mandatory;
+      scrollbar-width: none;
+    }
+    .slot-list::-webkit-scrollbar { display: none; }
+    .slot-item {
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 17px;
+      color: #9ca3af;
+      scroll-snap-align: center;
+      cursor: pointer;
+      user-select: none;
+      transition: color 0.1s, font-size 0.1s, font-weight 0.1s;
+    }
+    .slot-item.current { color: #4f46e5; font-size: 20px; font-weight: 700; }
+
+    /* ===== DONE COUNT ===== */
+    .done-count {
+      font-size: 11px;
+      color: #9ca3af;
+      background: #f3f4f6;
+      border-radius: 10px;
+      padding: 1px 6px;
+      margin-left: 4px;
+    }
+
     /* ===== YOUTUBE ===== */
     .yt-btn {
       background: #ff0000;
@@ -853,6 +908,62 @@ service cloud.firestore {
       );
     }
 
+    // ===== SLOT PICKER =====
+
+    function SlotPicker({ value, onChange }) {
+      const ITEM_H = 44;
+      const MAX = 99;
+      // items: null(pad), 0(なし), 1, 2, ..., MAX, null(pad)
+      const items = [null, 0, ...Array.from({length: MAX}, (_, i) => i + 1), null];
+      const ref = useRef(null);
+      const suppressRef = useRef(false);
+      const timerRef = useRef(null);
+      const current = (value === '' || value == null) ? 0 : Number(value);
+
+      // scrollTop = current * ITEM_H
+      useEffect(() => {
+        if (!ref.current) return;
+        const target = current * ITEM_H;
+        if (Math.abs(ref.current.scrollTop - target) < 2) return;
+        suppressRef.current = true;
+        ref.current.scrollTop = target;
+        setTimeout(() => { suppressRef.current = false; }, 300);
+      }, [current]);
+
+      const handleScroll = () => {
+        if (suppressRef.current) return;
+        clearTimeout(timerRef.current);
+        timerRef.current = setTimeout(() => {
+          if (!ref.current) return;
+          const idx = Math.max(0, Math.min(MAX, Math.round(ref.current.scrollTop / ITEM_H)));
+          ref.current.scrollTop = idx * ITEM_H;
+          onChange(idx === 0 ? '' : String(idx));
+        }, 80);
+      };
+
+      return (
+        <div className="slot-wrap">
+          <div className="slot-highlight" />
+          <div className="slot-fade" />
+          <div ref={ref} className="slot-list" onScroll={handleScroll}>
+            {items.map((item, i) => (
+              <div
+                key={i}
+                className={`slot-item${item === current ? ' current' : ''}${item === null ? '' : ''}`}
+                style={item === null ? {scrollSnapAlign:'none', cursor:'default'} : {}}
+                onClick={() => {
+                  if (item === null) return;
+                  onChange(item === 0 ? '' : String(item));
+                }}
+              >
+                {item === null ? '' : item === 0 ? 'なし' : `${item}日`}
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
     // ===== TASK CARD =====
 
     function TaskCard({ task, onMarkDone, onEdit, onDelete, onYouTube, selectMode, selected, onToggleSelect }) {
@@ -900,6 +1011,9 @@ service cloud.firestore {
               {dateStr && <span className="elapsed-date">({dateStr})</span>}
               {task.reminderDays && (
                 <span className="reminder-badge">🔔 {task.reminderDays}日</span>
+              )}
+              {task.doneCount > 0 && (
+                <span className="done-count">{task.doneCount}回</span>
               )}
             </div>
           </div>
@@ -989,7 +1103,7 @@ service cloud.firestore {
               <div className="form-field">
                 <label>リマインダー（何日後に通知）</label>
                 <div className="reminder-quick">
-                  {[7, 14, 21, 28].map(d => (
+                  {[1, 7, 14, 21, 28].map(d => (
                     <button
                       key={d}
                       type="button"
@@ -1003,13 +1117,7 @@ service cloud.firestore {
                     onClick={() => setReminderDays('')}
                   >なし</button>
                 </div>
-                <input
-                  type="number"
-                  value={reminderDays}
-                  onChange={e => setReminderDays(e.target.value)}
-                  placeholder="手入力も可"
-                  min="1"
-                />
+                <SlotPicker value={reminderDays} onChange={setReminderDays} />
               </div>
               <div className="form-field">
                 <label>YouTube URL（任意）</label>
@@ -1205,7 +1313,7 @@ service cloud.firestore {
               <div className="form-field">
                 <label>リマインダー（日数）</label>
                 <div className="reminder-quick">
-                  {[7, 14, 21, 28].map(d => (
+                  {[1, 7, 14, 21, 28].map(d => (
                     <button key={d} type="button"
                       className={`reminder-quick-btn${Number(reminderDays) === d ? ' active' : ''}`}
                       onClick={() => setReminderDays(String(d))}
@@ -1216,13 +1324,7 @@ service cloud.firestore {
                     onClick={() => setReminderDays('0')}
                   >なし</button>
                 </div>
-                <input
-                  type="number"
-                  value={reminderDays}
-                  onChange={e => setReminderDays(e.target.value)}
-                  placeholder="（変更しない場合は空欄）"
-                  min="1"
-                />
+                <SlotPicker value={reminderDays === '0' ? '' : reminderDays} onChange={v => setReminderDays(v === '' ? '0' : v)} />
               </div>
               <div className="modal-actions">
                 <button type="button" className="cancel-btn" onClick={onClose}>キャンセル</button>
@@ -1404,6 +1506,7 @@ service cloud.firestore {
       function handleMarkDone(id) {
         tasksRef().doc(id).update({
           lastDoneAt: firebase.firestore.FieldValue.serverTimestamp(),
+          doneCount: firebase.firestore.FieldValue.increment(1),
         });
       }
 
@@ -1426,6 +1529,7 @@ service cloud.firestore {
         selectedIds.forEach(id => {
           batch.update(tasksRef().doc(id), {
             lastDoneAt: firebase.firestore.FieldValue.serverTimestamp(),
+            doneCount: firebase.firestore.FieldValue.increment(1),
           });
         });
         await batch.commit();
