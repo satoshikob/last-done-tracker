@@ -841,6 +841,14 @@
       return m ? m[1] : null;
     }
 
+    // ===== LOCAL MODE HELPERS =====
+    const LS_LISTS = 'ldt_lists';
+    const LS_TASKS = 'ldt_tasks';
+    function lsGet(key) { try { return JSON.parse(localStorage.getItem(key)||'[]'); } catch{return[];} }
+    function lsSet(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
+    function lsId() { return 'local_'+Date.now().toString(36)+Math.random().toString(36).slice(2); }
+    function toIso(v) { if(!v)return null; if(v.toDate)return v.toDate().toISOString(); if(v instanceof Date)return v.toISOString(); return v; }
+
     // ===== SETUP SCREEN =====
 
     function SetupScreen() {
@@ -876,7 +884,7 @@ service cloud.firestore {
 
     // ===== LOGIN SCREEN =====
 
-    function LoginScreen({ onLogin }) {
+    function LoginScreen({ onLogin, onLocalMode }) {
       return (
         <div className="login-screen">
           <div className="login-card">
@@ -899,6 +907,9 @@ service cloud.firestore {
               </svg>
               Googleでログイン
             </button>
+            <button onClick={onLocalMode} style={{marginTop:'12px',width:'100%',padding:'12px',border:'1.5px solid #e5e7eb',borderRadius:'12px',background:'white',color:'#6b7280',fontSize:'14px',cursor:'pointer'}}>
+              ログインせずに使う（このデバイスのみ）
+            </button>
           </div>
         </div>
       );
@@ -906,17 +917,19 @@ service cloud.firestore {
 
     // ===== HEADER =====
 
-    function Header({ user, onLogout }) {
-      const initial = user.displayName ? user.displayName[0] : '?';
+    function Header({ user, onLogout, localMode }) {
+      const initial = user ? (user.displayName ? user.displayName[0] : '?') : '👤';
       return (
         <header className="header">
           <span className="header-title">📅 最後はいつ</span>
           <div className="header-right">
-            {user.photoURL
-              ? <img src={user.photoURL} alt="" className="avatar" />
-              : <div className="avatar-fallback">{initial}</div>
+            {localMode
+              ? <span style={{fontSize:'12px',background:'rgba(255,255,255,0.2)',padding:'4px 8px',borderRadius:'6px',color:'white'}}>ローカル</span>
+              : (user?.photoURL
+                  ? <img src={user.photoURL} alt="" className="avatar" />
+                  : <div className="avatar-fallback">{initial}</div>)
             }
-            <button onClick={onLogout} className="logout-btn">ログアウト</button>
+            <button onClick={onLogout} className="logout-btn">{localMode ? '終了' : 'ログアウト'}</button>
           </div>
         </header>
       );
@@ -1044,6 +1057,7 @@ service cloud.firestore {
       const [youtubeUrl,  setYoutubeUrl]  = useState(task?.youtubeUrl  ?? '');
       const [tags,        setTags]        = useState(task?.tags        ?? []);
       const [tagInput,    setTagInput]    = useState('');
+      const [doneCount,   setDoneCount]   = useState(task?.doneCount   ?? 0);
 
       function addTag(val) {
         const t = val.trim();
@@ -1074,6 +1088,7 @@ service cloud.firestore {
           reminderDays: reminderDays ? Number(reminderDays) : null,
           youtubeUrl:  youtubeUrl.trim() || null,
           tags: tags.length ? tags : [],
+          doneCount:   Number(doneCount) || 0,
         };
         // If manually changed the date, update lastDoneAt
         if (lastDoneDate) {
@@ -1189,6 +1204,17 @@ service cloud.firestore {
                   max={dayjs().format('YYYY-MM-DD')}
                 />
                 <p className="hint">「完了」ボタンで今日の日付が自動記録されます</p>
+              </div>
+              <div className="form-field">
+                <label>実施回数</label>
+                <input
+                  type="number"
+                  value={doneCount}
+                  onChange={e => setDoneCount(e.target.value)}
+                  min="0"
+                  placeholder="0"
+                />
+                <p className="hint">導入前の実施回数を手動で設定できます</p>
               </div>
               <div className="modal-actions">
                 <button type="button" className="cancel-btn" onClick={onClose}>キャンセル</button>
@@ -1399,12 +1425,13 @@ service cloud.firestore {
     function App() {
       const [user,             setUser]             = useState(null);
       const [authLoading,      setAuthLoading]      = useState(true);
+      const [localMode,        setLocalMode]        = useState(false);
       const [allTasks,         setAllTasks]         = useState([]);
       const [lists,            setLists]            = useState([]);
       const [currentListId,    setCurrentListId]    = useState(null);
       const [selectedCategory, setSelectedCategory] = useState('すべて');
       const [selectedTag,      setSelectedTag]      = useState(null);
-      const [hideDaily,        setHideDaily]        = useState(false);
+      const [dailyFilter,      setDailyFilter]      = useState(null); // null | 'daily' | 'nonDaily'
       const [modalOpen,        setModalOpen]        = useState(false);
       const [editingTask,      setEditingTask]      = useState(null);
       const [notifDismissed,   setNotifDismissed]   = useState(false);
@@ -1427,16 +1454,53 @@ service cloud.firestore {
           .then(result => { if (result?.user) setUser(result.user); })
           .catch(console.error);
 
+        // Firebase が応答しない場合も3秒後にログイン画面を表示
+        const timer = setTimeout(() => setAuthLoading(false), 3000);
+
         const unsub = auth.onAuthStateChanged(u => {
+          clearTimeout(timer);
           setUser(u);
           setAuthLoading(false);
         });
-        return unsub;
+        return () => { unsub(); clearTimeout(timer); };
       }, []);
+
+      // ----- LOCAL MODE INIT -----
+      function enterLocalMode() {
+        try {
+          let lsLists = lsGet(LS_LISTS);
+          if (lsLists.length === 0) {
+            const first = { id: lsId(), name: 'メイン', createdAt: new Date().toISOString() };
+            lsLists = [first];
+            try { lsSet(LS_LISTS, lsLists); } catch(e) {}
+          }
+          setLists(lsLists);
+          setCurrentListId(lsLists[0].id);
+          firstListRef.current = true;
+          const lsTasks = lsGet(LS_TASKS);
+          setAllTasks(lsTasks);
+        } catch(e) {
+          // localStorage が使えない環境でも動作するようメモリのみで初期化
+          const first = { id: 'local_default', name: 'メイン', createdAt: new Date().toISOString() };
+          setLists([first]);
+          setCurrentListId(first.id);
+          firstListRef.current = true;
+          setAllTasks([]);
+        }
+        setLocalMode(true);
+      }
+
+      function exitLocalMode() {
+        setLocalMode(false);
+        setAllTasks([]);
+        setLists([]);
+        setCurrentListId(null);
+        firstListRef.current = false;
+      }
 
       // ----- LISTS (Firestore listener) -----
       useEffect(() => {
-        if (!user) return;
+        if (!user || localMode) return;
         const unsub = db
           .collection('users').doc(user.uid).collection('lists')
           .orderBy('createdAt')
@@ -1454,11 +1518,11 @@ service cloud.firestore {
             }
           }, err => console.error(err));
         return unsub;
-      }, [user]);
+      }, [user, localMode]);
 
       // ----- TASKS (Firestore listener) -----
       useEffect(() => {
-        if (!user) return;
+        if (!user || localMode) return;
         const unsub = db
           .collection('users').doc(user.uid).collection('tasks')
           .orderBy('createdAt', 'desc')
@@ -1467,7 +1531,7 @@ service cloud.firestore {
             setAllTasks(data);
           }, err => console.error(err));
         return unsub;
-      }, [user]);
+      }, [user, localMode]);
 
       // ----- MIGRATE old tasks (no listId) to first list -----
       useEffect(() => {
@@ -1533,7 +1597,7 @@ service cloud.firestore {
           }
         }
       };
-      const handleLogout = () => auth.signOut();
+      const handleLogout = () => localMode ? exitLocalMode() : auth.signOut();
 
       // ----- TASK CRUD -----
       const tasksRef = useCallback(
@@ -1544,12 +1608,34 @@ service cloud.firestore {
       async function handleAddList() {
         const name = window.prompt('リスト名を入力してください');
         if (!name?.trim()) return;
+        if (localMode) {
+          const newList = { id: lsId(), name: name.trim(), createdAt: new Date().toISOString() };
+          const updated = [...lsGet(LS_LISTS), newList];
+          lsSet(LS_LISTS, updated);
+          setLists(updated);
+          setCurrentListId(newList.id);
+          return;
+        }
         const ref = await db.collection('users').doc(user.uid).collection('lists')
           .add({ name: name.trim(), createdAt: firebase.firestore.FieldValue.serverTimestamp() });
         setCurrentListId(ref.id);
       }
 
       async function handleSave(data) {
+        if (localMode) {
+          const now = new Date().toISOString();
+          const lsData = { ...data, lastDoneAt: toIso(data.lastDoneAt) };
+          let tasks = lsGet(LS_TASKS);
+          if (editingTask) {
+            tasks = tasks.map(t => t.id === editingTask.id ? { ...t, ...lsData } : t);
+          } else {
+            tasks = [{ ...lsData, id: lsId(), listId: currentListId, lastDoneAt: lsData.lastDoneAt ?? null, createdAt: now }, ...tasks];
+          }
+          lsSet(LS_TASKS, tasks);
+          setAllTasks(tasks);
+          closeModal();
+          return;
+        }
         if (editingTask) {
           await tasksRef().doc(editingTask.id).update(data);
         } else {
@@ -1564,6 +1650,15 @@ service cloud.firestore {
       }
 
       function handleMarkDone(id) {
+        if (localMode) {
+          const now = new Date().toISOString();
+          const tasks = lsGet(LS_TASKS).map(t =>
+            t.id === id ? { ...t, lastDoneAt: now, doneCount: (t.doneCount || 0) + 1 } : t
+          );
+          lsSet(LS_TASKS, tasks);
+          setAllTasks(tasks);
+          return;
+        }
         tasksRef().doc(id).update({
           lastDoneAt: firebase.firestore.FieldValue.serverTimestamp(),
           doneCount: firebase.firestore.FieldValue.increment(1),
@@ -1585,6 +1680,17 @@ service cloud.firestore {
 
       async function handleBatchDone() {
         if (selectedIds.size === 0) return;
+        if (localMode) {
+          const now = new Date().toISOString();
+          const tasks = lsGet(LS_TASKS).map(t =>
+            selectedIds.has(t.id) ? { ...t, lastDoneAt: now, doneCount: (t.doneCount || 0) + 1 } : t
+          );
+          lsSet(LS_TASKS, tasks);
+          setAllTasks(tasks);
+          setSelectedIds(new Set());
+          setSelectMode(false);
+          return;
+        }
         const batch = db.batch();
         selectedIds.forEach(id => {
           batch.update(tasksRef().doc(id), {
@@ -1599,6 +1705,17 @@ service cloud.firestore {
 
       async function handleBatchEdit(data) {
         if (selectedIds.size === 0) return;
+        if (localMode) {
+          const tasks = lsGet(LS_TASKS).map(t =>
+            selectedIds.has(t.id) ? { ...t, ...data } : t
+          );
+          lsSet(LS_TASKS, tasks);
+          setAllTasks(tasks);
+          setBatchEditOpen(false);
+          setSelectedIds(new Set());
+          setSelectMode(false);
+          return;
+        }
         const batch = db.batch();
         selectedIds.forEach(id => batch.update(tasksRef().doc(id), data));
         await batch.commit();
@@ -1609,6 +1726,12 @@ service cloud.firestore {
 
       async function handleDelete(id) {
         if (window.confirm('このタスクを削除しますか？')) {
+          if (localMode) {
+            const tasks = lsGet(LS_TASKS).filter(t => t.id !== id);
+            lsSet(LS_TASKS, tasks);
+            setAllTasks(tasks);
+            return;
+          }
           await tasksRef().doc(id).delete();
         }
       }
@@ -1634,7 +1757,7 @@ service cloud.firestore {
       const filtered = tasks
         .filter(t => selectedCategory === 'すべて' || t.category === selectedCategory)
         .filter(t => !selectedTag || (t.tags || []).includes(selectedTag))
-        .filter(t => !hideDaily || t.reminderDays !== 1);
+        .filter(t => !dailyFilter || (dailyFilter === 'daily' ? t.reminderDays === 1 : t.reminderDays !== 1));
 
       // Sort
       const toMs = d => d ? dayjs(d.toDate ? d.toDate() : d).valueOf() : null;
@@ -1662,12 +1785,12 @@ service cloud.firestore {
 
       // ----- RENDER -----
       if (!IS_CONFIGURED) return <SetupScreen />;
-      if (authLoading)    return <div className="loading">読み込み中...</div>;
-      if (!user)          return <LoginScreen onLogin={handleLogin} />;
+      if (authLoading && !localMode) return <div className="loading">読み込み中...</div>;
+      if (!user && !localMode)       return <LoginScreen onLogin={handleLogin} onLocalMode={enterLocalMode} />;
 
       return (
         <div className="app">
-          <Header user={user} onLogout={handleLogout} />
+          <Header user={user} onLogout={handleLogout} localMode={localMode} />
 
           {showNotifBanner && (
             <div className="notif-banner">
@@ -1685,7 +1808,7 @@ service cloud.firestore {
           <ListTabs
             lists={lists}
             currentListId={currentListId}
-            onSelect={id => { setCurrentListId(id); setSelectedCategory('すべて'); setSelectedTag(null); setHideDaily(false); }}
+            onSelect={id => { setCurrentListId(id); setSelectedCategory('すべて'); setSelectedTag(null); setDailyFilter(null); }}
             onAdd={handleAddList}
           />
 
@@ -1717,8 +1840,12 @@ service cloud.firestore {
               </button>
             ))}
             <button
-              className={`sort-btn${hideDaily ? ' active' : ''}`}
-              onClick={() => setHideDaily(v => !v)}
+              className={`sort-btn${dailyFilter === 'daily' ? ' active' : ''}`}
+              onClick={() => setDailyFilter(v => v === 'daily' ? null : 'daily')}
+            >毎日</button>
+            <button
+              className={`sort-btn${dailyFilter === 'nonDaily' ? ' active' : ''}`}
+              onClick={() => setDailyFilter(v => v === 'nonDaily' ? null : 'nonDaily')}
             >毎日以外</button>
             <div className="view-toggle" style={{marginLeft:'auto'}}>
               <button className={`view-toggle-btn${view==='list'?' active':''}`} onClick={() => setView('list')}>☰</button>
