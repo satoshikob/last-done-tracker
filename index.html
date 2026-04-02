@@ -919,7 +919,7 @@ service cloud.firestore {
 
     // ===== TASK MODAL =====
 
-    function TaskModal({ task, onSave, onClose }) {
+    function TaskModal({ task, onSave, onClose, existingCategories }) {
       const [name,        setName]        = useState(task?.name        ?? '');
       const [category,    setCategory]    = useState(task?.category    ?? '');
       const [reminderDays, setReminderDays] = useState(task?.reminderDays ?? '');
@@ -968,6 +968,18 @@ service cloud.firestore {
               </div>
               <div className="form-field">
                 <label>カテゴリ</label>
+                {existingCategories?.length > 0 && (
+                  <div className="reminder-quick" style={{marginBottom:'8px'}}>
+                    {existingCategories.map(cat => (
+                      <button
+                        key={cat}
+                        type="button"
+                        className={`reminder-quick-btn${category === cat ? ' active' : ''}`}
+                        onClick={() => setCategory(category === cat ? '' : cat)}
+                      >{cat}</button>
+                    ))}
+                  </div>
+                )}
                 <input
                   value={category}
                   onChange={e => setCategory(e.target.value)}
@@ -1147,6 +1159,81 @@ service cloud.firestore {
       );
     }
 
+    // ===== BATCH EDIT MODAL =====
+
+    function BatchEditModal({ count, onSave, onClose, existingCategories }) {
+      const [category,     setCategory]     = useState('');
+      const [reminderDays, setReminderDays] = useState('');
+      const overlayRef = useRef(null);
+
+      const handleSubmit = (e) => {
+        e.preventDefault();
+        const data = {};
+        if (category.trim()  !== '') data.category    = category.trim();
+        if (reminderDays !== '') data.reminderDays = reminderDays === '0' ? null : Number(reminderDays);
+        if (Object.keys(data).length === 0) return;
+        onSave(data);
+      };
+
+      return (
+        <div className="modal-overlay" ref={overlayRef} onClick={e => e.target===overlayRef.current && onClose()}>
+          <div className="modal">
+            <div className="modal-handle" />
+            <h2>{count}件をまとめて編集</h2>
+            <p style={{fontSize:'13px',color:'#6b7280',marginBottom:'20px',marginTop:'-16px'}}>
+              入力した項目だけ上書きされます
+            </p>
+            <form onSubmit={handleSubmit}>
+              <div className="form-field">
+                <label>カテゴリ</label>
+                {existingCategories?.length > 0 && (
+                  <div className="reminder-quick" style={{marginBottom:'8px'}}>
+                    {existingCategories.map(cat => (
+                      <button key={cat} type="button"
+                        className={`reminder-quick-btn${category === cat ? ' active' : ''}`}
+                        onClick={() => setCategory(category === cat ? '' : cat)}
+                      >{cat}</button>
+                    ))}
+                  </div>
+                )}
+                <input
+                  value={category}
+                  onChange={e => setCategory(e.target.value)}
+                  placeholder="（変更しない場合は空欄）"
+                />
+              </div>
+              <div className="form-field">
+                <label>リマインダー（日数）</label>
+                <div className="reminder-quick">
+                  {[7, 14, 21, 28].map(d => (
+                    <button key={d} type="button"
+                      className={`reminder-quick-btn${Number(reminderDays) === d ? ' active' : ''}`}
+                      onClick={() => setReminderDays(String(d))}
+                    >{d}日</button>
+                  ))}
+                  <button type="button"
+                    className={`reminder-quick-btn${reminderDays === '0' ? ' active' : ''}`}
+                    onClick={() => setReminderDays('0')}
+                  >なし</button>
+                </div>
+                <input
+                  type="number"
+                  value={reminderDays}
+                  onChange={e => setReminderDays(e.target.value)}
+                  placeholder="（変更しない場合は空欄）"
+                  min="1"
+                />
+              </div>
+              <div className="modal-actions">
+                <button type="button" className="cancel-btn" onClick={onClose}>キャンセル</button>
+                <button type="submit" className="save-btn">まとめて更新</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      );
+    }
+
     // ===== MAIN APP =====
 
     function App() {
@@ -1161,6 +1248,7 @@ service cloud.firestore {
       const [notifDismissed,   setNotifDismissed]   = useState(false);
       const [selectMode,       setSelectMode]       = useState(false);
       const [selectedIds,      setSelectedIds]      = useState(new Set());
+      const [batchEditOpen,    setBatchEditOpen]    = useState(false);
       const [sortKey,          setSortKey]          = useState('lastDone');
       const [sortAsc,          setSortAsc]          = useState(true);
       const [view,             setView]             = useState('list');
@@ -1345,6 +1433,16 @@ service cloud.firestore {
         setSelectMode(false);
       }
 
+      async function handleBatchEdit(data) {
+        if (selectedIds.size === 0) return;
+        const batch = db.batch();
+        selectedIds.forEach(id => batch.update(tasksRef().doc(id), data));
+        await batch.commit();
+        setBatchEditOpen(false);
+        setSelectedIds(new Set());
+        setSelectMode(false);
+      }
+
       async function handleDelete(id) {
         if (window.confirm('このタスクを削除しますか？')) {
           await tasksRef().doc(id).delete();
@@ -1468,6 +1566,12 @@ service cloud.firestore {
                   </span>
                   <div style={{display:'flex',gap:'8px'}}>
                     <button className="select-bar-cancel" onClick={toggleSelectMode}>キャンセル</button>
+                    <button className="select-bar-btn"
+                      style={{background:'#6b7280', ...(selectedIds.size === 0 ? {opacity:0.4} : {})}}
+                      onClick={() => setBatchEditOpen(true)}
+                      disabled={selectedIds.size === 0}>
+                      編集
+                    </button>
                     <button className="select-bar-btn" onClick={handleBatchDone}
                       disabled={selectedIds.size === 0} style={selectedIds.size === 0 ? {opacity:0.4} : {}}>
                       {selectedIds.size > 0 ? `${selectedIds.size}件を完了` : '完了'}
@@ -1511,7 +1615,16 @@ service cloud.firestore {
           {!selectMode && <button className="fab" onClick={openAddModal} title="タスクを追加">＋</button>}
 
           {modalOpen && (
-            <TaskModal task={editingTask} onSave={handleSave} onClose={closeModal} />
+            <TaskModal task={editingTask} onSave={handleSave} onClose={closeModal} existingCategories={categories} />
+          )}
+
+          {batchEditOpen && (
+            <BatchEditModal
+              count={selectedIds.size}
+              onSave={handleBatchEdit}
+              onClose={() => setBatchEditOpen(false)}
+              existingCategories={categories}
+            />
           )}
 
           {ytTask && (
