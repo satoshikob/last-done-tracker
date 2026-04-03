@@ -11,6 +11,7 @@
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', sans-serif;
       background: #f0f2f5;
       min-height: 100vh;
+      overflow-x: hidden;
     }
 
     /* ===== APP SHELL ===== */
@@ -21,6 +22,7 @@
       background: #f0f2f5;
       position: relative;
       padding-bottom: 96px;
+      overflow-x: hidden;
     }
 
     /* ===== LOADING ===== */
@@ -302,9 +304,19 @@
     /* ===== SORT BAR ===== */
     .sort-bar {
       display: flex;
-      gap: 6px;
+      align-items: center;
       padding: 6px 16px 2px;
+      gap: 6px;
     }
+    .sort-bar-scroll {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      flex: 1;
+      min-width: 0;
+    }
+    .sort-bar-scroll::-webkit-scrollbar { display: none; }
     .sort-btn {
       padding: 4px 12px;
       border-radius: 20px;
@@ -1825,29 +1837,31 @@ service cloud.firestore {
           />
 
           <div className="sort-bar">
-            {[
-              { key: 'lastDone', label: '実施日' },
-              { key: 'createdAt', label: '登録日' },
-              { key: 'deadline',  label: '期限'   },
-            ].map(({ key, label }) => (
+            <div className="sort-bar-scroll">
+              {[
+                { key: 'lastDone', label: '実施日' },
+                { key: 'createdAt', label: '登録日' },
+                { key: 'deadline',  label: '期限'   },
+              ].map(({ key, label }) => (
+                <button
+                  key={key}
+                  className={`sort-btn${sortKey === key ? ' active' : ''}`}
+                  onClick={() => sortKey === key ? setSortAsc(v => !v) : (setSortKey(key), setSortAsc(true))}
+                >
+                  {label}
+                  {sortKey === key && <span className="sort-arrow">{sortAsc ? ' ↑' : ' ↓'}</span>}
+                </button>
+              ))}
               <button
-                key={key}
-                className={`sort-btn${sortKey === key ? ' active' : ''}`}
-                onClick={() => sortKey === key ? setSortAsc(v => !v) : (setSortKey(key), setSortAsc(true))}
-              >
-                {label}
-                {sortKey === key && <span className="sort-arrow">{sortAsc ? ' ↑' : ' ↓'}</span>}
-              </button>
-            ))}
-            <button
-              className={`sort-btn${dailyFilter === 'daily' ? ' active' : ''}`}
-              onClick={() => setDailyFilter(v => v === 'daily' ? null : 'daily')}
-            >毎日</button>
-            <button
-              className={`sort-btn${dailyFilter === 'nonDaily' ? ' active' : ''}`}
-              onClick={() => setDailyFilter(v => v === 'nonDaily' ? null : 'nonDaily')}
-            >毎日以外</button>
-            <div className="view-toggle" style={{marginLeft:'auto'}}>
+                className={`sort-btn${dailyFilter === 'daily' ? ' active' : ''}`}
+                onClick={() => setDailyFilter(v => v === 'daily' ? null : 'daily')}
+              >毎日</button>
+              <button
+                className={`sort-btn${dailyFilter === 'nonDaily' ? ' active' : ''}`}
+                onClick={() => setDailyFilter(v => v === 'nonDaily' ? null : 'nonDaily')}
+              >毎日以外</button>
+            </div>
+            <div className="view-toggle">
               <button className={`view-toggle-btn${view==='list'?' active':''}`} onClick={() => setView('list')}>☰</button>
               <button className={`view-toggle-btn${view==='calendar'?' active':''}`} onClick={() => setView('calendar')}>📅</button>
             </div>
