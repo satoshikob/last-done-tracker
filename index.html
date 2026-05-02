@@ -304,9 +304,16 @@
     /* ===== SORT BAR ===== */
     .sort-bar {
       display: flex;
+      flex-direction: column;
+      padding: 4px 16px 6px;
+      background: white;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .sort-bar-row1 {
+      display: flex;
       align-items: center;
-      padding: 6px 16px 2px;
       gap: 6px;
+      padding: 2px 0;
     }
     .sort-bar-scroll {
       display: flex;
@@ -317,6 +324,11 @@
       min-width: 0;
     }
     .sort-bar-scroll::-webkit-scrollbar { display: none; }
+    .sort-bar-row2 {
+      display: flex;
+      gap: 6px;
+      padding: 4px 0 2px;
+    }
     .sort-btn {
       padding: 4px 12px;
       border-radius: 20px;
@@ -847,6 +859,12 @@
       return 'ok';
     }
 
+    function isDoneToday(task) {
+      if (!task.lastDoneAt) return false;
+      const date = task.lastDoneAt.toDate ? task.lastDoneAt.toDate() : new Date(task.lastDoneAt);
+      return dayjs().startOf('day').diff(dayjs(date).startOf('day'), 'day') === 0;
+    }
+
     function getYouTubeId(url) {
       if (!url) return null;
       const m = url.match(/(?:v=|youtu\.be\/|embed\/)([^&?/\s]{11})/);
@@ -856,7 +874,9 @@
     // ===== LOCAL MODE HELPERS =====
     const LS_LISTS = 'ldt_lists';
     const LS_TASKS = 'ldt_tasks';
+    const LS_PREFS = 'ldt_prefs';
     function lsGet(key) { try { return JSON.parse(localStorage.getItem(key)||'[]'); } catch{return[];} }
+    function lsGetPrefs() { try { return JSON.parse(localStorage.getItem(LS_PREFS)||'{}'); } catch{return{};} }
     function lsSet(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
     function lsId() { return 'local_'+Date.now().toString(36)+Math.random().toString(36).slice(2); }
     function toIso(v) { if(!v)return null; if(v.toDate)return v.toDate().toISOString(); if(v instanceof Date)return v.toISOString(); return v; }
@@ -1435,28 +1455,33 @@ service cloud.firestore {
     // ===== MAIN APP =====
 
     function App() {
+      // 保存済みプレフを初回レンダリング時に読み込む
+      const _p = lsGetPrefs();
+
       const [user,             setUser]             = useState(null);
       const [authLoading,      setAuthLoading]      = useState(true);
       const [localMode,        setLocalMode]        = useState(false);
       const [allTasks,         setAllTasks]         = useState([]);
       const [lists,            setLists]            = useState([]);
       const [currentListId,    setCurrentListId]    = useState(null);
-      const [selectedCategory, setSelectedCategory] = useState('すべて');
-      const [selectedTag,      setSelectedTag]      = useState(null);
-      const [dailyFilter,      setDailyFilter]      = useState(null); // null | 'daily' | 'nonDaily'
+      const [selectedCategory, setSelectedCategory] = useState(_p.selectedCategory ?? 'すべて');
+      const [selectedTag,      setSelectedTag]      = useState(_p.selectedTag      ?? null);
+      const [dailyFilter,      setDailyFilter]      = useState(_p.dailyFilter      ?? null);
+      const [todayFilter,      setTodayFilter]      = useState(_p.todayFilter      ?? null);
       const [modalOpen,        setModalOpen]        = useState(false);
       const [editingTask,      setEditingTask]      = useState(null);
       const [notifDismissed,   setNotifDismissed]   = useState(false);
       const [selectMode,       setSelectMode]       = useState(false);
       const [selectedIds,      setSelectedIds]      = useState(new Set());
       const [batchEditOpen,    setBatchEditOpen]    = useState(false);
-      const [sortKey,          setSortKey]          = useState('lastDone');
-      const [sortAsc,          setSortAsc]          = useState(true);
-      const [view,             setView]             = useState('list');
+      const [sortKey,          setSortKey]          = useState(_p.sortKey          ?? 'lastDone');
+      const [sortAsc,          setSortAsc]          = useState(_p.sortAsc          ?? true);
+      const [view,             setView]             = useState(_p.view             ?? 'list');
       const [calMonth,         setCalMonth]         = useState(dayjs());
       const [ytTask,           setYtTask]           = useState(null);
-      const notifiedRef  = useRef(new Set());
-      const firstListRef = useRef(false);
+      const notifiedRef    = useRef(new Set());
+      const firstListRef   = useRef(false);
+      const savedListIdRef = useRef(_p.currentListId ?? null); // リスト復元用
       const migratedRef  = useRef(false);
 
       // ----- AUTH -----
@@ -1477,6 +1502,13 @@ service cloud.firestore {
         return () => { unsub(); clearTimeout(timer); };
       }, []);
 
+      // ----- PREFERENCES AUTO-SAVE -----
+      useEffect(() => {
+        try {
+          lsSet(LS_PREFS, { selectedCategory, selectedTag, dailyFilter, todayFilter, sortKey, sortAsc, view, currentListId });
+        } catch(e) {}
+      }, [selectedCategory, selectedTag, dailyFilter, todayFilter, sortKey, sortAsc, view, currentListId]);
+
       // ----- LOCAL MODE INIT -----
       function enterLocalMode() {
         try {
@@ -1487,7 +1519,9 @@ service cloud.firestore {
             try { lsSet(LS_LISTS, lsLists); } catch(e) {}
           }
           setLists(lsLists);
-          setCurrentListId(lsLists[0].id);
+          const savedId = savedListIdRef.current;
+          const matchedList = savedId && lsLists.find(l => l.id === savedId);
+          setCurrentListId(matchedList ? matchedList.id : lsLists[0].id);
           firstListRef.current = true;
           const lsTasks = lsGet(LS_TASKS);
           setAllTasks(lsTasks);
@@ -1524,7 +1558,9 @@ service cloud.firestore {
             } else {
               setLists(data);
               if (!firstListRef.current) {
-                setCurrentListId(data[0].id);
+                const saved = savedListIdRef.current;
+                const match = saved && data.find(d => d.id === saved);
+                setCurrentListId(match ? match.id : data[0].id);
                 firstListRef.current = true;
               }
             }
@@ -1769,7 +1805,8 @@ service cloud.firestore {
       const filtered = tasks
         .filter(t => selectedCategory === 'すべて' || t.category === selectedCategory)
         .filter(t => !selectedTag || (t.tags || []).includes(selectedTag))
-        .filter(t => !dailyFilter || (dailyFilter === 'daily' ? t.reminderDays === 1 : t.reminderDays !== 1));
+        .filter(t => !dailyFilter || (dailyFilter === 'daily' ? t.reminderDays === 1 : t.reminderDays !== 1))
+        .filter(t => !todayFilter || (todayFilter === 'doneToday' ? isDoneToday(t) : !isDoneToday(t)));
 
       // Sort
       const toMs = d => d ? dayjs(d.toDate ? d.toDate() : d).valueOf() : null;
@@ -1820,7 +1857,7 @@ service cloud.firestore {
           <ListTabs
             lists={lists}
             currentListId={currentListId}
-            onSelect={id => { setCurrentListId(id); setSelectedCategory('すべて'); setSelectedTag(null); setDailyFilter(null); }}
+            onSelect={id => { setCurrentListId(id); setSelectedCategory('すべて'); setSelectedTag(null); setDailyFilter(null); setTodayFilter(null); }}
             onAdd={handleAddList}
           />
 
@@ -1837,33 +1874,45 @@ service cloud.firestore {
           />
 
           <div className="sort-bar">
-            <div className="sort-bar-scroll">
-              {[
-                { key: 'lastDone', label: '実施日' },
-                { key: 'createdAt', label: '登録日' },
-                { key: 'deadline',  label: '期限'   },
-              ].map(({ key, label }) => (
+            <div className="sort-bar-row1">
+              <div className="sort-bar-scroll">
+                {[
+                  { key: 'lastDone', label: '実施日' },
+                  { key: 'createdAt', label: '登録日' },
+                  { key: 'deadline',  label: '期限'   },
+                ].map(({ key, label }) => (
+                  <button
+                    key={key}
+                    className={`sort-btn${sortKey === key ? ' active' : ''}`}
+                    onClick={() => sortKey === key ? setSortAsc(v => !v) : (setSortKey(key), setSortAsc(true))}
+                  >
+                    {label}
+                    {sortKey === key && <span className="sort-arrow">{sortAsc ? ' ↑' : ' ↓'}</span>}
+                  </button>
+                ))}
                 <button
-                  key={key}
-                  className={`sort-btn${sortKey === key ? ' active' : ''}`}
-                  onClick={() => sortKey === key ? setSortAsc(v => !v) : (setSortKey(key), setSortAsc(true))}
-                >
-                  {label}
-                  {sortKey === key && <span className="sort-arrow">{sortAsc ? ' ↑' : ' ↓'}</span>}
-                </button>
-              ))}
-              <button
-                className={`sort-btn${dailyFilter === 'daily' ? ' active' : ''}`}
-                onClick={() => setDailyFilter(v => v === 'daily' ? null : 'daily')}
-              >毎日</button>
-              <button
-                className={`sort-btn${dailyFilter === 'nonDaily' ? ' active' : ''}`}
-                onClick={() => setDailyFilter(v => v === 'nonDaily' ? null : 'nonDaily')}
-              >毎日以外</button>
+                  className={`sort-btn${dailyFilter === 'daily' ? ' active' : ''}`}
+                  onClick={() => setDailyFilter(v => v === 'daily' ? null : 'daily')}
+                >毎日</button>
+                <button
+                  className={`sort-btn${dailyFilter === 'nonDaily' ? ' active' : ''}`}
+                  onClick={() => setDailyFilter(v => v === 'nonDaily' ? null : 'nonDaily')}
+                >毎日以外</button>
+              </div>
+              <div className="view-toggle">
+                <button className={`view-toggle-btn${view==='list'?' active':''}`} onClick={() => setView('list')}>☰</button>
+                <button className={`view-toggle-btn${view==='calendar'?' active':''}`} onClick={() => setView('calendar')}>📅</button>
+              </div>
             </div>
-            <div className="view-toggle">
-              <button className={`view-toggle-btn${view==='list'?' active':''}`} onClick={() => setView('list')}>☰</button>
-              <button className={`view-toggle-btn${view==='calendar'?' active':''}`} onClick={() => setView('calendar')}>📅</button>
+            <div className="sort-bar-row2">
+              <button
+                className={`sort-btn${todayFilter === 'notDoneToday' ? ' active' : ''}`}
+                onClick={() => setTodayFilter(v => v === 'notDoneToday' ? null : 'notDoneToday')}
+              >本日未実施</button>
+              <button
+                className={`sort-btn${todayFilter === 'doneToday' ? ' active' : ''}`}
+                onClick={() => setTodayFilter(v => v === 'doneToday' ? null : 'doneToday')}
+              >本日実施済</button>
             </div>
           </div>
 
