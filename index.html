@@ -738,6 +738,19 @@
       margin-left: 4px;
     }
 
+    .undo-done-btn {
+      font-size: 11px;
+      color: #f59e0b;
+      background: #fffbeb;
+      border: 1px solid #fcd34d;
+      border-radius: 10px;
+      padding: 1px 7px;
+      margin-left: 4px;
+      cursor: pointer;
+      line-height: 1.4;
+    }
+    .undo-done-btn:hover { background: #fef3c7; }
+
     /* ===== YOUTUBE ===== */
     .yt-btn {
       background: #ff0000;
@@ -1008,7 +1021,7 @@ service cloud.firestore {
 
     // ===== TASK CARD =====
 
-    function TaskCard({ task, onMarkDone, onEdit, onDelete, onYouTube, selectMode, selected, onToggleSelect }) {
+    function TaskCard({ task, onMarkDone, onUnmarkDone, onEdit, onDelete, onYouTube, selectMode, selected, onToggleSelect }) {
       const elapsed  = getElapsedLabel(task.lastDoneAt);
       const dateStr  = getElapsedDate(task.lastDoneAt);
       const urgency  = getUrgency(task.lastDoneAt, task.reminderDays);
@@ -1063,6 +1076,9 @@ service cloud.firestore {
               )}
               {task.doneCount > 0 && (
                 <span className="done-count">{task.doneCount}回</span>
+              )}
+              {!selectMode && isDoneToday(task) && (
+                <button className="undo-done-btn" onClick={e => { e.stopPropagation(); onUnmarkDone(task.id); }}>↩取消</button>
               )}
             </div>
           </div>
@@ -1698,10 +1714,12 @@ service cloud.firestore {
       }
 
       function handleMarkDone(id) {
+        const task = allTasks.find(t => t.id === id);
         if (localMode) {
           const now = new Date().toISOString();
           const tasks = lsGet(LS_TASKS).map(t =>
-            t.id === id ? { ...t, lastDoneAt: now, doneCount: (t.doneCount || 0) + 1 } : t
+            t.id === id ? { ...t, lastDoneAt: now, doneCount: (t.doneCount || 0) + 1,
+              prevLastDoneAt: t.lastDoneAt ?? null, prevDoneCount: t.doneCount ?? 0 } : t
           );
           lsSet(LS_TASKS, tasks);
           setAllTasks(tasks);
@@ -1710,6 +1728,28 @@ service cloud.firestore {
         tasksRef().doc(id).update({
           lastDoneAt: firebase.firestore.FieldValue.serverTimestamp(),
           doneCount: firebase.firestore.FieldValue.increment(1),
+          prevLastDoneAt: task?.lastDoneAt ?? null,
+          prevDoneCount: task?.doneCount ?? 0,
+        });
+      }
+
+      function handleUnmarkDone(id) {
+        const task = allTasks.find(t => t.id === id);
+        if (localMode) {
+          const tasks = lsGet(LS_TASKS).map(t => {
+            if (t.id !== id) return t;
+            const { prevLastDoneAt, prevDoneCount, ...rest } = t;
+            return { ...rest, lastDoneAt: prevLastDoneAt ?? null, doneCount: prevDoneCount ?? 0 };
+          });
+          lsSet(LS_TASKS, tasks);
+          setAllTasks(tasks);
+          return;
+        }
+        tasksRef().doc(id).update({
+          lastDoneAt: task?.prevLastDoneAt ?? null,
+          doneCount: task?.prevDoneCount ?? Math.max(0, (task?.doneCount || 1) - 1),
+          prevLastDoneAt: firebase.firestore.FieldValue.delete(),
+          prevDoneCount: firebase.firestore.FieldValue.delete(),
         });
       }
 
@@ -1731,7 +1771,8 @@ service cloud.firestore {
         if (localMode) {
           const now = new Date().toISOString();
           const tasks = lsGet(LS_TASKS).map(t =>
-            selectedIds.has(t.id) ? { ...t, lastDoneAt: now, doneCount: (t.doneCount || 0) + 1 } : t
+            selectedIds.has(t.id) ? { ...t, lastDoneAt: now, doneCount: (t.doneCount || 0) + 1,
+              prevLastDoneAt: t.lastDoneAt ?? null, prevDoneCount: t.doneCount ?? 0 } : t
           );
           lsSet(LS_TASKS, tasks);
           setAllTasks(tasks);
@@ -1740,10 +1781,40 @@ service cloud.firestore {
           return;
         }
         const batch = db.batch();
-        selectedIds.forEach(id => {
-          batch.update(tasksRef().doc(id), {
+        allTasks.filter(t => selectedIds.has(t.id)).forEach(task => {
+          batch.update(tasksRef().doc(task.id), {
             lastDoneAt: firebase.firestore.FieldValue.serverTimestamp(),
             doneCount: firebase.firestore.FieldValue.increment(1),
+            prevLastDoneAt: task.lastDoneAt ?? null,
+            prevDoneCount: task.doneCount ?? 0,
+          });
+        });
+        await batch.commit();
+        setSelectedIds(new Set());
+        setSelectMode(false);
+      }
+
+      async function handleBatchUnmarkDone() {
+        if (selectedIds.size === 0) return;
+        if (localMode) {
+          const tasks = lsGet(LS_TASKS).map(t => {
+            if (!selectedIds.has(t.id) || !isDoneToday(t)) return t;
+            const { prevLastDoneAt, prevDoneCount, ...rest } = t;
+            return { ...rest, lastDoneAt: prevLastDoneAt ?? null, doneCount: prevDoneCount ?? 0 };
+          });
+          lsSet(LS_TASKS, tasks);
+          setAllTasks(tasks);
+          setSelectedIds(new Set());
+          setSelectMode(false);
+          return;
+        }
+        const batch = db.batch();
+        allTasks.filter(t => selectedIds.has(t.id) && isDoneToday(t)).forEach(task => {
+          batch.update(tasksRef().doc(task.id), {
+            lastDoneAt: task.prevLastDoneAt ?? null,
+            doneCount: task.prevDoneCount ?? Math.max(0, (task.doneCount || 1) - 1),
+            prevLastDoneAt: firebase.firestore.FieldValue.delete(),
+            prevDoneCount: firebase.firestore.FieldValue.delete(),
           });
         });
         await batch.commit();
@@ -1953,6 +2024,19 @@ service cloud.firestore {
                       disabled={selectedIds.size === 0} style={selectedIds.size === 0 ? {opacity:0.4} : {}}>
                       {selectedIds.size > 0 ? `${selectedIds.size}件を完了` : '完了'}
                     </button>
+                    {(() => {
+                      const hasDoneToday = [...selectedIds].some(id => {
+                        const t = allTasks.find(t => t.id === id);
+                        return t && isDoneToday(t);
+                      });
+                      return (
+                        <button className="select-bar-btn" onClick={handleBatchUnmarkDone}
+                          disabled={!hasDoneToday}
+                          style={{background:'#f59e0b', ...(hasDoneToday ? {} : {opacity:0.4})}}>
+                          取消
+                        </button>
+                      );
+                    })()}
                   </div>
                 </div>
               ) : (
@@ -1976,6 +2060,7 @@ service cloud.firestore {
                       key={task.id}
                       task={task}
                       onMarkDone={handleMarkDone}
+                      onUnmarkDone={handleUnmarkDone}
                       onEdit={handleEdit}
                       onDelete={handleDelete}
                       onYouTube={setYtTask}
