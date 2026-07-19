@@ -1882,6 +1882,8 @@ service cloud.firestore {
       // Sort
       const toMs = d => d ? dayjs(d.toDate ? d.toDate() : d).valueOf() : null;
       const sorted = [...filtered].sort((a, b) => {
+        if (!a.lastDoneAt && b.lastDoneAt) return -1;
+        if (a.lastDoneAt && !b.lastDoneAt) return 1;
         let va, vb;
         if (sortKey === 'lastDone') {
           va = toMs(a.lastDoneAt);
