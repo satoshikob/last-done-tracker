@@ -2043,7 +2043,24 @@ service cloud.firestore {
                 </div>
               ) : (
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'4px 16px 0'}}>
-                  <span style={{fontSize:'12px',color:'#9ca3af'}}>{sorted.length}件</span>
+                  <span style={{fontSize:'12px',color:'#9ca3af',display:'flex',alignItems:'center',gap:'6px',flexWrap:'wrap'}}>
+                    <span>{sorted.length}件</span>
+                    {[
+                      { u:'overdue', color:'#ef4444' },
+                      { u:'warning', color:'#f59e0b' },
+                      { u:'ok',      color:'#22c55e' },
+                      { u:'none',    color:'#d1d5db' },
+                    ].map(({ u, color }) => {
+                      const count = sorted.filter(t => getUrgency(t.lastDoneAt, t.reminderDays) === u).length;
+                      if (count === 0) return null;
+                      return (
+                        <span key={u} style={{display:'flex',alignItems:'center',gap:'2px'}}>
+                          <span style={{width:'8px',height:'8px',borderRadius:'50%',background:color,flexShrink:0,display:'inline-block'}} />
+                          {count}
+                        </span>
+                      );
+                    })}
+                  </span>
                   {sorted.length > 0 && (
                     <button className="select-toggle-btn" onClick={toggleSelectMode}>☑ まとめてチェック</button>
                   )}
