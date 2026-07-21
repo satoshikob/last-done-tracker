@@ -1567,7 +1567,7 @@ service cloud.firestore {
           .collection('users').doc(user.uid).collection('lists')
           .orderBy('createdAt')
           .onSnapshot(snap => {
-            const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            const data = snap.docs.map(d => ({ id: d.id, ...d.data({ serverTimestamps: 'estimate' }) }));
             if (data.length === 0) {
               db.collection('users').doc(user.uid).collection('lists')
                 .add({ name: 'メイン', createdAt: firebase.firestore.FieldValue.serverTimestamp() });
@@ -1591,7 +1591,7 @@ service cloud.firestore {
           .collection('users').doc(user.uid).collection('tasks')
           .orderBy('createdAt', 'desc')
           .onSnapshot(snap => {
-            const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            const data = snap.docs.map(d => ({ id: d.id, ...d.data({ serverTimestamps: 'estimate' }) }));
             setAllTasks(data);
           }, err => console.error(err));
         return unsub;
