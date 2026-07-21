@@ -2042,11 +2042,12 @@ service cloud.firestore {
                   </div>
                 </div>
               ) : (
-                sorted.length > 0 && (
-                  <div style={{display:'flex',justifyContent:'flex-end',padding:'4px 16px 0'}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'4px 16px 0'}}>
+                  <span style={{fontSize:'12px',color:'#9ca3af'}}>{sorted.length}件</span>
+                  {sorted.length > 0 && (
                     <button className="select-toggle-btn" onClick={toggleSelectMode}>☑ まとめてチェック</button>
-                  </div>
-                )
+                  )}
+                </div>
               )}
 
               <main className="task-list">
