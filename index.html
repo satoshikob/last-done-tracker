@@ -1895,6 +1895,13 @@ service cloud.firestore {
           va = toMs(a.createdAt) ?? 0;
           vb = toMs(b.createdAt) ?? 0;
         } else { // deadline
+          const ra = a.reminderDays || null;
+          const rb = b.reminderDays || null;
+          if (ra !== rb) {
+            if (ra === null) return 1;
+            if (rb === null) return -1;
+            return sortAsc ? ra - rb : rb - ra;
+          }
           const dl = t => (t.reminderDays && t.lastDoneAt)
             ? toMs(t.lastDoneAt) + t.reminderDays * 86400000 : null;
           va = dl(a); vb = dl(b);
