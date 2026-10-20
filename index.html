@@ -1895,6 +1895,13 @@ service cloud.firestore {
           va = toMs(a.createdAt) ?? 0;
           vb = toMs(b.createdAt) ?? 0;
         } else { // deadline
+          const overdue = t => {
+            if (!t.lastDoneAt || !t.reminderDays) return false;
+            const d = t.lastDoneAt.toDate ? t.lastDoneAt.toDate() : new Date(t.lastDoneAt);
+            return dayjs().startOf('day').diff(dayjs(d).startOf('day'), 'day') >= t.reminderDays;
+          };
+          const oa = overdue(a), ob = overdue(b);
+          if (oa !== ob) return oa ? -1 : 1;
           const ra = a.reminderDays || null;
           const rb = b.reminderDays || null;
           if (ra !== rb) {
