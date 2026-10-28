@@ -554,6 +554,19 @@
       transition: all 0.15s;
     }
     .list-tab.active { background: #4f46e5; border-color: #4f46e5; color: white; }
+    .list-tab-delete {
+      margin-left: 5px;
+      font-size: 11px;
+      opacity: 0.5;
+      line-height: 1;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 0 1px;
+      color: inherit;
+      vertical-align: middle;
+    }
+    .list-tab-delete:hover { opacity: 1; }
     .list-tab-add {
       padding: 5px 12px;
       border-radius: 20px;
@@ -1278,7 +1291,7 @@ service cloud.firestore {
 
     // ===== LIST TABS =====
 
-    function ListTabs({ lists, currentListId, onSelect, onAdd }) {
+    function ListTabs({ lists, currentListId, onSelect, onAdd, onDelete }) {
       return (
         <div className="list-tabs">
           {lists.map(list => (
@@ -1288,6 +1301,13 @@ service cloud.firestore {
               onClick={() => onSelect(list.id)}
             >
               {list.name}
+              {lists.length > 1 && (
+                <span
+                  className="list-tab-delete"
+                  onClick={e => { e.stopPropagation(); onDelete(list); }}
+                  title="削除"
+                >×</span>
+              )}
             </button>
           ))}
           <button className="list-tab-add" onClick={onAdd} title="リストを追加">＋</button>
@@ -1685,6 +1705,31 @@ service cloud.firestore {
         setCurrentListId(ref.id);
       }
 
+      async function handleDeleteList(list) {
+        const taskCount = allTasks.filter(t => t.listId === list.id).length;
+        const msg = taskCount > 0
+          ? `「${list.name}」を削除します。このリストのタスク${taskCount}件も削除されます。よろしいですか？`
+          : `「${list.name}」を削除しますか？`;
+        if (!window.confirm(msg)) return;
+        const fallback = lists.find(l => l.id !== list.id);
+        if (fallback) setCurrentListId(fallback.id);
+        if (localMode) {
+          const newLists = lsGet(LS_LISTS).filter(l => l.id !== list.id);
+          const newTasks = lsGet(LS_TASKS).filter(t => t.listId !== list.id);
+          lsSet(LS_LISTS, newLists);
+          lsSet(LS_TASKS, newTasks);
+          setLists(newLists);
+          setAllTasks(newTasks);
+          return;
+        }
+        const batch = db.batch();
+        batch.delete(db.collection('users').doc(user.uid).collection('lists').doc(list.id));
+        allTasks.filter(t => t.listId === list.id).forEach(t =>
+          batch.delete(db.collection('users').doc(user.uid).collection('tasks').doc(t.id))
+        );
+        await batch.commit();
+      }
+
       async function handleSave(data) {
         if (localMode) {
           const now = new Date().toISOString();
@@ -1946,6 +1991,7 @@ service cloud.firestore {
             currentListId={currentListId}
             onSelect={id => { setCurrentListId(id); setSelectedCategory('すべて'); setSelectedTag(null); setDailyFilter(null); setTodayFilter(null); }}
             onAdd={handleAddList}
+            onDelete={handleDeleteList}
           />
 
           <CategoryFilter
